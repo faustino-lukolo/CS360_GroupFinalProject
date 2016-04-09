@@ -16,6 +16,12 @@ OFT    oft[NOFT];
 extern char *rootdev;
 extern char line[1024];
 extern MINODE minode[NMINODES];
+void get_block(int dev, int blk, char buf[])
+{
+    // using the device descriptor seek to the block we want to read i.e (blk & 1024)
+    lseek(dev, blk * BLOCK_SIZE, SEEK_SET);
+    read(dev, buf, BLOCK_SIZE);
+}
 int init()
 {
     int i, j;
@@ -61,9 +67,33 @@ int init()
     printf("INIT OK!\n");
 
 }
-int mount_root(char *dev)
+int mount_root(char *devName)
 {
-    printf("mounting root device = %s\n", dev);
+    // Local variables for file system operations
+    int i, ino, fd, dev;
+    int ninodes, nblocks, ifree, bfree;
+
+    char buf[BLOCK_SIZE];           // buffer for reading block
+    MOUNT *mp;
+    SUPER *sp;
+    MINODE *ip;
+
+    // Open device for RW
+    dev = open(devName, O_RDWR);
+    if (dev < 0) {
+        /* code */
+        printf("FAILED TO OPEN DEVICE : %s\n", devName);
+        exit(EXIT_FAILURE);
+    }
+    printf("device %s opened successfully dev descriptor = %d\n", devName, dev);
+
+    // read super block into buffer
+    get_block(dev, SUPERBLOCK, buf);
+    sp =(SUPER *)buf;
+
+    is_ext2(sp->s_magic);
+
+    printf("mounting root device = %s\n", devName);
 }
 void get_input()
 {

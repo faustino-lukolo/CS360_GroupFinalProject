@@ -18,7 +18,9 @@ OFT    oft[NOFT];
 
 
 int init();
-int mount_root(char *dev);
 void get_input();
+int mount_root(char *dev);
+
+void get_block(int dev, int blk, char buf[]);
 
 #endif

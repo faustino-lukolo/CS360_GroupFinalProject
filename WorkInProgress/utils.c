@@ -16,11 +16,24 @@ OFT    oft[NOFT];
 extern char *rootdev;
 extern char line[1024];
 extern MINODE minode[NMINODES];
-void get_block(int dev, int blk, char buf[])
+extern char blkBuf[BLOCK_SIZE];
+
+
+extern int ninodes, nblocks, ifree, bfree;
+
+void get_block(int dev, int blk, char mbuf[])
 {
     // using the device descriptor seek to the block we want to read i.e (blk & 1024)
     lseek(dev, blk * BLOCK_SIZE, SEEK_SET);
-    read(dev, buf, BLOCK_SIZE);
+    read(dev, mbuf, BLOCK_SIZE);
+}
+
+int is_ext2(SUPER *sptr){
+    if (sptr->s_magic != SUPER_MAGIC) {
+        /* code */
+        return -1;
+    }
+    return 1;
 }
 int init()
 {
@@ -87,11 +100,42 @@ int mount_root(char *devName)
     }
     printf("device %s opened successfully dev descriptor = %d\n", devName, dev);
 
-    // read super block into buffer
+    // read super block into blkBuf
     get_block(dev, SUPERBLOCK, buf);
-    sp =(SUPER *)buf;
+    sp = (SUPER *)buf;
 
-    is_ext2(sp->s_magic);
+    // check that it is indeed ext2 fs
+    if(is_ext2(sp) < 0)
+    {
+        printf("ERROR: NOT EXT2 FS\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Check to see if global SUPER *sp is initialized
+    printf("s_magic = %x : SUPER_MAGIC = %x\n", sp->s_magic, SUPER_MAGIC );
+
+    // Setup mounttab[0] this will be our root device and will contain
+    // Inodes and block information
+    mp = &mounttab[0];
+
+    // save important inode and block information
+    ninodes = mp->ninodes = sp->s_inodes_count;
+    nblocks = mp->nblocks = sp->s_blocks_count;
+
+    // save the free inodes and free blocks
+    ifree = sp->s_free_inodes_count;
+    bfree = sp->s_free_blocks_count;
+
+
+    printf("nblock count  = %d\n", nblocks);
+    printf("ninodes count = %d\n", ninodes);
+    printf("free inodes   = %d\n", ifree);
+    printf("free blocks   = %d\n", bfree);
+
+
+    // Get Block 2 Group descriptor Block
+    get_block(dev, GDBLOCK, buf);
+    gp = (GD *)buf;
 
     printf("mounting root device = %s\n", devName);
 }
@@ -105,7 +149,6 @@ void get_input()
         /* code */
         printf("newline found\n");
         line[strlen(line) -1] = 0;
-
     }
 
 }

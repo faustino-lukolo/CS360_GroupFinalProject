@@ -10,6 +10,7 @@
 #include <libgen.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <stdint.h>
 
 // define shorter TYPES, save typing efforts
 typedef struct ext2_group_desc  GD;
@@ -52,6 +53,8 @@ DIR   *dp;
 #define NPROC             10
 #define NFD               10
 #define NOFT              50
+
+
 
 // Open File Table
 typedef struct Oft{

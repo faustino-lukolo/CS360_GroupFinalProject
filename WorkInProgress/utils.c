@@ -19,7 +19,7 @@ extern MINODE minode[NMINODES];
 extern char blkBuf[BLOCK_SIZE];
 
 
-extern int ninodes, nblocks, ifree, bfree;
+extern int ninodes, nblocks, ifree, bfree, InodeBeginBlock;
 
 void get_block(int dev, int blk, char mbuf[])
 {
@@ -75,15 +75,14 @@ int init()
         oft[i].refCount = 0;
 
     }
-    mount_root(rootdev);
-
     printf("INIT OK!\n");
+    mount_root(rootdev);
 
 }
 int mount_root(char *devName)
 {
     // Local variables for file system operations
-    int i, ino, fd, dev;
+    int i, ino, dev;
     int ninodes, nblocks, ifree, bfree;
 
     char buf[BLOCK_SIZE];           // buffer for reading block
@@ -108,10 +107,11 @@ int mount_root(char *devName)
     if(is_ext2(sp) < 0)
     {
         printf("ERROR: NOT EXT2 FS\n");
-        exit(EXIT_FAILURE);
+        exit(EXIT_SUCCESS);
     }
 
-    // Check to see if global SUPER *sp is initialized
+
+    // Check to see if SUPER *sp is initialized
     printf("s_magic = %x : SUPER_MAGIC = %x\n", sp->s_magic, SUPER_MAGIC );
 
     // Setup mounttab[0] this will be our root device and will contain
@@ -119,6 +119,7 @@ int mount_root(char *devName)
     mp = &mounttab[0];
 
     // save important inode and block information
+    /* copy super block info to mounttab[0] */
     ninodes = mp->ninodes = sp->s_inodes_count;
     nblocks = mp->nblocks = sp->s_blocks_count;
 
@@ -126,19 +127,124 @@ int mount_root(char *devName)
     ifree = sp->s_free_inodes_count;
     bfree = sp->s_free_blocks_count;
 
-
-    printf("nblock count  = %d\n", nblocks);
-    printf("ninodes count = %d\n", ninodes);
-    printf("free inodes   = %d\n", ifree);
-    printf("free blocks   = %d\n", bfree);
+    // printf("nblock count  = %d\n", nblocks);
+    // printf("ninodes count = %d\n", ninodes);
+    // printf("free inodes   = %d\n", ifree);
+    // printf("free blocks   = %d\n", bfree);
 
 
     // Get Block 2 Group descriptor Block
     get_block(dev, GDBLOCK, buf);
     gp = (GD *)buf;
 
-    printf("mounting root device = %s\n", devName);
+    // Assign mounted device to the dev descriptor and set it to busy
+    mp->dev = dev;
+    mp->busy = BUSY;
+
+    // Copy the group descrip bmap and imap and InodeBeginBlock (Inode Table)
+    // into mounttab[0]
+    mp->bmap    = gp->bg_block_bitmap;
+    mp->imap    = gp->bg_inode_bitmap;
+
+    // Save the inode begin block
+    mp->iblock  = InodeBeginBlock = gp->bg_inode_table;
+
+    // copy the root device name into mounttab[0]
+    strcpy(mp->name, devName);
+    // copy the '/' root to mounttab[0] device name
+    strcpy(mp->mount_name, "/");
+
+    // display group descriptor information
+    printf("bmap = %d imap = %d InodeBeginBlock (iblock) = %d \n", gp->bg_block_bitmap, gp->bg_inode_bitmap, gp->bg_inode_table);
+
+    /***** call iget(), which inc the Minode's refCount ****/
+    root = iget(dev, 2);        // Get root's MINODE inode #2
+    mp->mounted_inode = root;   // set the mounttab[0] mounted inode to root
+
+    // print information about the mounted device
+    printf("mount: %s mounted on / \n", devName);
+    printf("nblocks = %d, bfree = %d ninodes = %d ifree = %d\n", nblocks, bfree, ninodes, ifree);
+
+    return 0;
+
 }
+
+/*
+6. MINODE *iget(int dev, int ino)
+{
+  Once you have the ino of an inode, you may load the inode into a slot
+  in the Minode[] array. To ensure uniqueness, you must search the Minode[]
+  array to see whether the needed INODE already exists:
+
+  If you find the needed INODE already in a Minode[] slot, just inc its
+  refCount by 1 and return the Minode[] pointer.
+
+  If you do not find it in memory, you must allocate a FREE Minode[i], load
+  the INODE from disk into that Minode[i].INODE, initialize the Minode[]'s
+  other fields and return its address as a MINODE pointer,
+}
+*/
+MINODE *iget(int dev, uint32_t ino)
+{
+  // locals
+  MINODE *tmip;                 // Temp mip pointer to minode []
+  int blk, offset;
+  char mbuf[BLOCK_SIZE];
+
+
+  int i=0;
+  while (i < NMINODES) {        // NMINODES global constant = 50 can change in type.h file
+    // if this inode exists in the Minode[] and the refCount is not 0
+    if (minode[i].refCount > 0 && minode[i].ino == ino) {
+      tmip = &minode[i];        // Assign the address of this minode[i] to a temp minode pointer
+      minode[i].refCount++;
+      return tmip;
+    }
+    i++;
+  }
+
+  // Inode does not exists search for a free location to place this inode
+  i = 0;
+  // loop till refCount = 0 or i == NMINODES (No space in minode[] array)
+  while (minode[i].refCount > 0 && i < NMINODES) { i++; }
+  if (i == NMINODES) {
+    printf("Error: MINODE[] IS FULL!\n");
+    return 0;
+  }
+
+  // get the inode block iBlock by using mailman's algorithm
+  blk = (ino - 1) / 8 + InodeBeginBlock;
+  printf("iget() blk = %d\n", blk);
+
+  // get the offset of the inode
+  offset = (ino - 1) % 8;
+  printf("iget() offset = %d\n", offset);
+
+
+  // Find this blk
+  get_block(dev, blk, mbuf);
+  ip = (INODE *)mbuf + offset;      // + offset to get the location of this inode within the block
+
+
+  // Copy the inode from disk into the minode[i] : free location that we found earlier
+  memcpy(&(minode[i].INODE), ip, sizeof(INODE));
+
+  // Set the information for minode[i] array
+  minode[i].dev = dev;
+  minode[i].ino = ino;
+  minode[i].refCount = 1;
+  minode[i].dirty = 0;
+  minode[i].mounted = 0;
+  minode[i].mountptr = 0;
+
+  // return the address of this minode[i]
+
+  printf("iget() Working!\n");
+
+  return &minode[i];
+}
+
+
 void get_input()
 {
     printf("commands: [cd ls]\n");

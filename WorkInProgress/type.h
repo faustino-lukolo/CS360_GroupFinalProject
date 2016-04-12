@@ -23,6 +23,7 @@ SUPER *sp;
 INODE *ip;
 DIR   *dp;
 
+#define bzero(b,len) (memset((b), '\0', (len)), (void) 0)
 #define BLOCK_SIZE        1024
 #define BLKSIZE           1024
 #define BITS_PER_BLOCK    (8*BLOCK_SIZE)

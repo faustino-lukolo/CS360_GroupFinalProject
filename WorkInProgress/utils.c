@@ -166,16 +166,12 @@ int mount_root(char *devName)
 
 
     mp->iblock  = InodeBeginBlock = gp->bg_inode_table;     // Save the inode begin block
-
-
     strcpy(mp->name, devName);                              // copy the root device name into mounttab[0]
-
     strcpy(mp->mount_name, "/");                            // copy the '/' root to mounttab[0] device name
 
     printf("bmap = %d", gp->bg_block_bitmap);
     printf("imap = %d", gp->bg_inode_bitmap);
     printf("InodeBeginBlock (iblock) = %d \n",gp->bg_inode_table);
-
 
     /***** call iget(), which inc the Minode's refCount ****/
     root = iget(dev, 2);        // Get root's MINODE inode #2
@@ -260,6 +256,40 @@ MINODE *iget(int dev, uint32_t ino)
 
     return &minode[i];
 }
+int iput(int mdev, MINODE *mip)
+{
+    char buf[BLOCK_SIZE];
+    int blk, offset;
+    INODE *tmpip;
+
+    mip->refCount--;                    // decrease refCount by 1
+    if(mip->refCount > 0){ return 1; }
+    if(mip->refCount == 0) { return 1; }
+
+    // Write inode back to disk. Why?
+    // get block and offset using mailman algorithm
+    blk = (mip->ino -1) / 8 + InodeBeginBlock;
+    offset = (mip->ino -1) % 8;
+
+    // read the block into the buffer
+    get_block(mdev, blk, buf);
+    tmpip = (INODE *)buf + offset;
+    memcpy(tmpip, &mip->INODE, sizeof(INODE));
+
+    // put the block back into disk
+    put_block(mip->dev, blk, buf);
+    return 0;
+}
+
+int put_block(int mdev, int blk, char *buf)
+{
+    lseek(mdev, (long)(blk * BLOCK_SIZE), SEEK_SET);
+    write(mdev, buf, BLOCK_SIZE);
+
+    return 0;
+}
+
+
 /*
 This is the most important function of the FS. It converts a pathname, such as
  /a/b/c/d OR x/y/z, into its inode number (ino).
@@ -267,20 +297,42 @@ This is the most important function of the FS. It converts a pathname, such as
  THIS IS THE SAME AS YOUR showblock.c program. Instead of printing blocks,
  return its inode number.
 */
-uint32_t getino(int *dev, char *pathname)
+uint32_t getino(int dev, char *path)
 {
     uint32_t ino = 0;
     char **tokensArray;
     MINODE *mip;
 
-    if (pathname) {
+    if (path) {
         tokensArray = tokenize(pathname);
+    }
+    else{       // path is not given
+
+        /* ino is the running proccess current working directory.
+        it is where we are currently in the dirs i.e. if we cd cs360 then
+        the ino belongs to cs360 directory
+        */
+        ino = running->cwd->ino;
+        return ino;
+    }
+
+    // No if the path begins with '/' character then we are starting from root
+    // Absolute directories always has path starting with '/'
+    if (path[0] == '/') {
+        ip = &(root->INODE);        // inode pointer points to the root INODE
+        ino = root->ino;            // inode number is root->ino
+    }
+    else{ // Start from cwd: Relative paths do not start with '/' i.e. cs360/is/fun
+        // We need to find the inode number for the last dir in the path i.e. fun
+        ip = &running->cwd->INODE;  // inode pointer points to the CWD INODE
     }
 
     int i = 0;
     while (tokensArray[i]) {
         printf("path %d = %s\n", i, tokensArray[i++]);
     }
+
+    return ino;
 }
 /*
   tokenize a pathname into components and their numbers n.
@@ -306,30 +358,18 @@ char ** tokenize(char *pathname)
 
     names[i] = 0;
 
-    // rest counter
-    i = 0;
-    while (names[i]) {
-        token = (char*)malloc(sizeof(char) * strlen(names[i]));
-        strcpy(token, names[i]);
-        names[i] = token;
-        i++;
-    }
-
     return names;
 }
-void get_input()
+void getInput()
 {
-    printf("commands: [cd ls]\n");
-    printf("cmd: ");
+    char buf[1024];
+    int len = -1;
+    char *temp;
 
-    fgets(line, 256, stdin);
-    if (line[strlen(line) -1] == '\n') {
-        /* code */
-        printf("newline found\n");
-        line[strlen(line) -1] = 0;
-    }
+    printf("cs360@mysh: ");
+    fgets(line, 1024, stdin);
+    line[strlen(line) - 1] = 0;     // kill \n 
 }
-
 /***************** Commands Functions **************/
 
 /*5. ls [pathname] command:
@@ -350,7 +390,7 @@ void get_input()
 int ls(char *path)
 {
 /* local variables */
-    int ino;                // the inode number of path
+    uint32_t ino;                // the inode number of path
     MINODE *mip;            // pointer to the inode inside minode[] array
     printf("cmd = ls path = %s \n", pathname);
     getchar();
@@ -368,7 +408,7 @@ int ls(char *path)
     else if(pathname[0] == '/' && pathname[1] == 0)
         ino = root->ino;
     else
-        ino = getino(&dev, path);
+        ino = getino(dev, path);
 
     if(!ino)
     {
@@ -383,20 +423,105 @@ int ls(char *path)
     // mip points at minode;
     // Each data block of mip->INODE contains DIR entries
     findDatablocks(&mip->INODE, 0);
+    iput(mip->dev, mip);
     getchar();
 
 }
+
+int cd(char *path)
+{
+    MINODE *mip;
+    uint32_t ino;
+
+    printf("cd() : path = %s\n", path);
+    if(!path || !path[0] || (path[0] == '/' && !path[1]))
+    {
+        ino = root->ino;
+        printf("ino = root->ino = %d\n", ino);
+    }
+    else{
+        ino = getino(dev, path);
+        printf("ino = getino() : ino = %d\n", ino);
+    }
+
+    if (ino == 0) {
+        printf("Invalid Path\n");
+        return -1;
+    }
+    //
+    // // get the inode from minode[] array
+    // mip = iget(dev, ino);
+    //
+    // printf("checking if %s is a directory!\n", path);
+    // getchar();
+    // // We can only cd into a directory. Verify that the path provided is indeed
+    // // a directory
+    // if(!S_ISDIR(mip->INODE.i_mode))
+    // {
+    //     printf("Error: given path is not a directory\n");
+    //     iput(dev, mip);             // put the inode back into the disk
+    //     return -1;
+    // }
+    //
+    // // if it is a directory then put the inode back into device
+    // iput(dev, running->cwd);
+    //
+    // // Change current working directory to the mip inode in minode[]
+    // // that belongs to the path give.
+    // running->cwd = mip;
+}
+
 
 // Finds the datablocks where the dir entries are inside minode[]
 int findDatablocks(INODE *ip, int pstat)
 {
     int i;
+    uint32_t buf[256], mbuf[256];
     // Search the first 11 blocks : Direct blocks
     for (i = 0; i < 12; i++) {
         if (ip->i_block[i]) {
             printDirEntry(ip->i_block[i], pstat);
         }
     }
+
+    // Search i_blocks[12]: indirect blocks
+    if(ip->i_block[12])
+    {
+        // read indirect block into buffer
+        get_block(dev, ip->i_block[12], (char*)buf);
+
+        // there are 256 blocks in i_block[12] indirect block
+        for (i = 0; i < 256; i++) {
+            if (buf[i]) {
+                printDirEntry(buf[i], pstat);
+            }
+        }
+    }
+
+    // Search i_block[13]: double indirect blocks
+    if (ip->i_block[13]) {
+
+        // read the block into buffer
+        get_block(dev, ip->i_block[13], (char*)buf);
+
+        int j;
+        // there are 256 blocks in i_block[13] each of which has 256 additional blocks
+        for (i = 0; i < 256; i++) {
+            if (buf[i]) {
+                // read this block into mbuf
+                get_block(dev, buf[i], (char*)mbuf);
+                // search the 256 blocks of block buf[i]
+                for (j = 0; j < 256; j++) {
+                    if(mbuf[j])
+                    {
+                        printDirEntry(mbuf[j], pstat);
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
 }
 int printDirEntry(int blk, int pstat)
 {

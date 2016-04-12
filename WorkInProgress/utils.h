@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 /************************ globals *****************************/
-char cmd[32], pathname[128], params[64], cwdname[128], blkBuf[BLOCK_SIZE], line[256];
+char cmd[32], pathname[128], params[64], cwdname[128], blkBuf[BLOCK_SIZE], line[1024];
 int ninodes, nblocks, ifree, bfree, InodeBeginBlock, nproc, dev;
 
 int iblock;
@@ -18,13 +18,15 @@ OFT    oft[NOFT];
 
 
 int init();
-void get_input();
+void getInput();
 char ** tokenize(char *pathname);
 int mount_root(char *dev);
 
 // block operations functions
 MINODE *iget(int dev, uint32_t ino);
-uint32_t getino(int *dev, char *pathname);
+int iput(int mdev, MINODE *mip);
+int put_block(int mdev, int blk, char *buf);
+uint32_t getino(int dev, char *path);
 
 void get_block(int dev, int blk, char buf[]);
 int is_ext2(SUPER *sptr);
@@ -32,6 +34,7 @@ int is_ext2(SUPER *sptr);
 
 /* Start of Linux Commands Functions */
 int ls(char *path);
+int cd(char *path);
 
 
 
@@ -40,9 +43,7 @@ int findDatablocks(INODE *ip, int pstat);
 int printDirs(int blk, int pstat);
 int printstat(DIR *dp);
 
-
-
 /*Function pointers for commands */
-static int (*fptr[])(char*) = {(int (*)())ls};
+static int (*fptr[])(char*) = {(int (*)())ls, cd};
 static char *sh_cmds[] = {"ls", "cd"};
 #endif

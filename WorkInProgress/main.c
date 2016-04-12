@@ -1,7 +1,6 @@
 #include "utils.h"
 
 char *rootdev = "mydisk";
-
 int main(int argc, char *argv[], char *env[] ) {
 
 
@@ -20,7 +19,7 @@ int main(int argc, char *argv[], char *env[] ) {
         bzero(line, 256);
 
         printf("P[%d] running proc\n",running->pid);
-        get_input();
+        getInput();
         printf("line = %s\n", line);
 
         sscanf(line, "%s %s %s", cmd, pathname, params);

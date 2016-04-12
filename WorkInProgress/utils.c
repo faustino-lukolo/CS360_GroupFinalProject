@@ -16,8 +16,6 @@ OFT    oft[NOFT];
 extern char *rootdev;
 extern MINODE minode[NMINODES];
 extern char blkBuf[BLOCK_SIZE];
-
-
 extern int ninodes, nblocks, ifree, bfree, InodeBeginBlock;
 
 void get_block(int dev, int blk, char mbuf[])
@@ -103,7 +101,7 @@ int init()
 int mount_root(char *devName)
 {
     // Local variables for file system operations
-    int i, ino, dev;
+    int i, ino;
     int ninodes, nblocks, ifree, bfree;
 
     char buf[BLOCK_SIZE];           // buffer for reading block
@@ -357,16 +355,83 @@ int ls(char *path)
     printf("cmd = ls path = %s \n", pathname);
     getchar();
 
-    // Case 1: pathname is null set inode number to the running->cwd->ino
+    /* Case 1: pathname is null set inode number to the running->cwd->ino
     // The Inode we are interested in is the current running process inode number
+       Case 2: pathname begins with / and  pathname[1] is black
+       Case 3: pathname is other than just / i.e. /a/b/c a/b/c then we have to find the ino
+    */
     if(!path || !pathname[0])
     {
         ino = running->cwd->ino;
         printf("running->cwd->ino = %d\n", ino);
     }
+    else if(pathname[0] == '/' && pathname[1] == 0)
+        ino = root->ino;
+    else
+        ino = getino(&dev, path);
 
+    if(!ino)
+    {
+        printf("Invalid pathname\n");
+        return -1;
+    }
+
+    // Get the indoe from minode[]
+    mip = iget(dev, ino);
+    printf("ino = %d\n",ino);
+
+    // mip points at minode;
+    // Each data block of mip->INODE contains DIR entries
+    findDatablocks(&mip->INODE, 0);
     getchar();
 
+}
 
+// Finds the datablocks where the dir entries are inside minode[]
+int findDatablocks(INODE *ip, int pstat)
+{
+    int i;
+    // Search the first 11 blocks : Direct blocks
+    for (i = 0; i < 12; i++) {
+        if (ip->i_block[i]) {
+            printDirEntry(ip->i_block[i], pstat);
+        }
+    }
+}
+int printDirEntry(int blk, int pstat)
+{
+    int i;
+    char *cp;
+    DIR *dp;
+    char mbuf[BLOCK_SIZE], tmpname[256];
 
+    get_block(dev, blk, mbuf);
+    dp = (DIR*)mbuf;
+    cp = mbuf;
+
+    // Search the buffer for all dir entries
+    while (cp < mbuf + BLOCK_SIZE) {
+        if (pstat) {
+            printstat(dp);
+        }
+        else
+        {
+            // Clear the temp dir entry name
+            // copy the dp->name found in DIR Struct into tmpname
+            bzero(tmpname, 256);
+            strncpy(tmpname, dp->name, dp->name_len);
+            printf("%4d %4d %4d %s\n", dp->inode, dp->rec_len, dp->name_len, tmpname);
+        }
+
+        // Go to the next entry by adding the rec_len to the char pointer cp
+        cp += dp->rec_len;
+        // set the Dir pointer dp to this next entry and repeat
+        dp = (DIR *)cp;
+    }
+    return 0;
+}
+
+int printstat(DIR *dp)
+{
+    printf("file information\n");
 }

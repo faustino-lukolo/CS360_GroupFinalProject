@@ -6,7 +6,7 @@
 
 /************************ globals *****************************/
 char cmd[32], pathname[128], params[64], cwdname[128], blkBuf[BLOCK_SIZE], line[256];
-int ninodes, nblocks, ifree, bfree, InodeBeginBlock, nproc;
+int ninodes, nblocks, ifree, bfree, InodeBeginBlock, nproc, dev;
 
 int iblock;
 
@@ -32,6 +32,15 @@ int is_ext2(SUPER *sptr);
 
 /* Start of Linux Commands Functions */
 int ls(char *path);
+
+
+
+// ext2 utils functions
+int findDatablocks(INODE *ip, int pstat);
+int printDirs(int blk, int pstat);
+int printstat(DIR *dp);
+
+
 
 /*Function pointers for commands */
 static int (*fptr[])(char*) = {(int (*)())ls};

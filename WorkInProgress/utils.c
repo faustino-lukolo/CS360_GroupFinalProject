@@ -593,7 +593,7 @@ int printDirEntry(int blk, int pstat)
     // Search the buffer for all dir entries
     while (cp < mbuf + BLOCK_SIZE) {
         if (pstat) {
-            printstat(dp);
+            printf("print file stat... \n");
         }
         else
         {
@@ -612,32 +612,53 @@ int printDirEntry(int blk, int pstat)
     return 0;
 }
 
-int printstat(DIR *dp)
-{
-    struct stat *st;
-    char temp[256], lnk[256];
-    MINODE *mip;
-
-    mystat(dp, &s);
-
-    //Print info
-   if (S_ISLNK(s.st_mode)) { printf("%s ", "LNK"); }
-   else if (S_ISREG(s.st_mode)) { printf("%s ", "REG"); }
-   else if(S_ISDIR(s.st_mode)) { printf("%s ", "DIR"); }
-   else { printf("%s ", "N/A"); }
-}
-
-int mystat(DIR *dp, struct stat *st)
-{
-    int ino;
-    MINODE *mip;
-
-    if(dp == 0)
+/** HOW TO MKDIR **
+Assume: command line = "mkdir pathname" OR  "creat pathname"
+Extract cmd, pathname from line and save them as globals.
+    make_dir()
     {
-        printf("ERROR: NO DIR Entries\n");
-        return -1;
+    1. pahtname = "/a/b/c" start mip = root;         dev = root->dev;
+                =  "a/b/c" start mip = running->cwd; dev = running->cwd->dev;
+    2. Let
+         parent = dirname(pathname);   parent= "/a/b" OR "a/b"
+         child  = basename(pathname);  child = "c"
+    3. Get the In_MEMORY minode of parent:
+             pino  = getino(&dev, parent);
+             pip   = iget(dev, pino);
+       Verify : (1). parent INODE is a DIR (HOW?)   AND
+                (2). child does NOT exists in the parent directory (HOW?);
+    4. call mymkdir(pip, child);
+    5. inc parent inodes's link count by 1;
+       touch its atime and mark it DIRTY
+    6. iput(pip);
+    }
+*/
+
+int make_dir(char *path)
+{
+    char parent[256], child[256], pathnameCopy[512];
+    MINODE *mip;
+    int mdev, ino;
+
+    printf("mkdir(): path = %s\n", path);
+
+    // Clear the arrays
+    bzero(parent, 256);
+    bzero(child, 256);
+    bzero(pathnameCopy, 512);
+
+    // preserve the pathname
+    strcpy(pathnameCopy, path);
+    if(path[0] == '/')
+    {
+        mdev = root->dev;
+        printf("path starts from: root device = %d\n", mdev);
+    }
+    else{
+        mdev = running->cwd->dev;
+        printf("path starts running process cwd: running->cwd->dev = %d\n", mdev);
     }
 
-    ino = get
 
+    return 0;
 }

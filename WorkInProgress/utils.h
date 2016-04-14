@@ -36,7 +36,7 @@ int is_ext2(SUPER *sptr);
 /* Start of Linux Commands Functions */
 int ls(char *path);
 int cd(char *path);
-
+int make_dir(char *path);
 
 
 // ext2 utils functions
@@ -45,6 +45,6 @@ int printDirs(int blk, int pstat);
 int printstat(DIR *dp);
 
 /*Function pointers for commands */
-static int (*fptr[])(char*) = {(int (*)())ls, cd};
-static char *sh_cmds[] = {"ls", "cd"};
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir};
+static char *sh_cmds[] = {"ls", "cd", "mkdir"};
 #endif

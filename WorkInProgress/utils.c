@@ -375,9 +375,9 @@ uint32_t search(int mdev, char *name, INODE *ip)
             printf("compare: name = %s tempEnt = %s\n", name, tempEnt);
             if(strcmp(tempEnt, name) == 0) {
                 printf("search() return: %d\n", dp->inode);
-                
+
                 // Inode belongs to the name we are looking for
-                return dp->inode;                  
+                return dp->inode;
             }
 
             // Next entry
@@ -402,24 +402,24 @@ uint32_t getinoname(MINODE *parent, int myinode, char *inoname)
 	char buf[BLOCK_SIZE];
 	char *cp;
 	DIR *localdirinoptr;
-	INODE *localinoptr; 
-	// 
+	INODE *localinoptr;
+	//
 	localinoptr = &parent->INODE;
-	
+
 	for(i = 0; found == 0 && i < 12; i++)
 	{
 		get_block(dev, localinoptr->i_block[i], buf);
 		cp = buf;
 		localdirinoptr = (DIR *)buf;
 		strcpy(tempname, localdirinoptr->name);
-	
+
 		// ensure tempname ends with null terminator
 		tempname[localdirinoptr->name_len] = '\0';
-		
+
 		// test
 		printf("Inside get inode name function\n");
-		
-		
+
+
 		while(cp < (buf + BLOCK_SIZE))
 		{
 			// Right Dir entery found!
@@ -429,18 +429,18 @@ uint32_t getinoname(MINODE *parent, int myinode, char *inoname)
 				found = 1;
 				break;
 			}
-			
+
 			// Increment cp to next address in buff
 			cp += localdirinoptr->rec_len;
 			localdirinoptr = (DIR *)cp;
 			strcpy(tempname, localdirinoptr->name);
 			// ensure tempname ends with null terminator
 			tempname[localdirinoptr->name_len] = '\0';
-			
+
 		}
-		
+
 	}
-	
+
 	return found;
 }
 /* mip (memory inode ptr) is the inode data member (minode) we are looking into
@@ -455,23 +455,23 @@ uint32_t findinode(MINODE *mip, int *myinode, int *parentino)
 	char buf[BLOCK_SIZE];
 	DIR *localdirinoptr;
 	INODE *localinoptr;
-	
+
 	// test
 	printf("Inside find inode function\n");
-	
+
 	localinoptr = &mip->INODE;
 	get_block(mip->dev, localinoptr->i_block[0], buf);
 	cp = buf;
-	
+
 	// set myinode pointer
 	localdirinoptr = (DIR *)buf;
 	*myinode = localdirinoptr->inode;
-	
+
 	// set myinodes parents pointer
 	cp += localdirinoptr->rec_len; // Increment cp to next address in buff
 	localdirinoptr = (DIR *)cp;
 	*parentino = localdirinoptr->inode;
-	
+
 	return 0;
 }
 /*
@@ -529,6 +529,7 @@ void getInput()
       // print the name strings of the DIR entries
    }
 */
+
 int ls(char *path)
 {
 /* local variables */
@@ -722,28 +723,21 @@ Extract cmd, pathname from line and save them as globals.
 
 int make_dir(char *path)
 {
-    char parent[256], child[256], pathnameCopy[512];
+    char *dirc, *basec, *bname, *dname;
+
     MINODE *mip;
     int mdev, ino;
 
     printf("mkdir(): path = %s\n", path);
 
-    // Clear the arrays
-    bzero(parent, 256);
-    bzero(child, 256);
-    bzero(pathnameCopy, 512);
+    // Get basename and dirname
+    dirc = strdup(path);
+    basec = strdup(path);
+    dname = dirname(dirc);
+    bname = basename(basec);
 
-    // preserve the pathname
-    strcpy(pathnameCopy, path);
-    if(path[0] == '/')
-    {
-        mdev = root->dev;
-        printf("path starts from: root device = %d\n", mdev);
-    }
-    else{
-        mdev = running->cwd->dev;
-        printf("path starts running process cwd: running->cwd->dev = %d\n", mdev);
-    }
+    printf("dirname=%s, basename=%s\n", dname, bname);
+
 
 
     return 0;
@@ -756,30 +750,30 @@ int pwd(char *pathstr)
 	char temp_path[256];
 	char path[256];
 	int ino_num, parent_ino_num;
-	MINODE *LocalMinoPrntPtr, *LocalMinoPtr; 
-	
+	MINODE *LocalMinoPrntPtr, *LocalMinoPtr;
+
 	strcpy(path, "");
-	
+
 	LocalMinoPtr = running->cwd;
-	
+
 	findinode(LocalMinoPtr, &ino_num, &parent_ino_num);
-	
-	
+
+
 	while(parent_ino_num != ino_num)
 	{
 		// test
         printf("PINoN = %d, LinoN = %d\n", parent_ino_num, ino_num);
-        
+
 		LocalMinoPrntPtr = (MINODE *)iget(dev, parent_ino_num);
-		
+
 		// test
         printf("before get ino name\n");
 		getinoname(LocalMinoPrntPtr, ino_num, temp_name);
-		
-		
+
+
 		// test
 		printf("outside get inode name function");
-		
+
 		strcpy(temp_path, path);
         strcpy(path, temp_name);
         strcat(path, "/");

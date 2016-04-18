@@ -4,7 +4,6 @@
 #include "type.h"
 #include <stdlib.h>
 
-// THIS IS A TEST OF COMMIT AND PUSH
 /************************ globals *****************************/
 char cmd[32], pathname[128], params[64], cwdname[128], blkBuf[BLOCK_SIZE], line[1024];
 int ninodes, nblocks, ifree, bfree, InodeBeginBlock, nproc, dev;

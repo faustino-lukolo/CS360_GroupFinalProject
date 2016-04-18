@@ -19,7 +19,7 @@ OFT    oft[NOFT];
 
 int init();
 void getInput();
-char ** tokenize(char *pathname);
+char ** tokenize(char *path);
 int mount_root(char *dev);
 
 // block operations functions
@@ -27,6 +27,7 @@ MINODE *iget(int dev, uint32_t ino);
 int iput(int mdev, MINODE *mip);
 int put_block(int mdev, int blk, char *buf);
 uint32_t getino(int dev, char *path);
+uint32_t search(int mdev, char *name, INODE *ip);
 
 void get_block(int dev, int blk, char buf[]);
 int is_ext2(SUPER *sptr);
@@ -35,7 +36,7 @@ int is_ext2(SUPER *sptr);
 /* Start of Linux Commands Functions */
 int ls(char *path);
 int cd(char *path);
-
+int make_dir(char *path);
 
 
 // ext2 utils functions
@@ -44,6 +45,6 @@ int printDirs(int blk, int pstat);
 int printstat(DIR *dp);
 
 /*Function pointers for commands */
-static int (*fptr[])(char*) = {(int (*)())ls, cd};
-static char *sh_cmds[] = {"ls", "cd"};
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir};
+static char *sh_cmds[] = {"ls", "cd", "mkdir"};
 #endif

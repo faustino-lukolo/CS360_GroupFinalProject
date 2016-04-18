@@ -262,23 +262,8 @@ int iput(int mdev, MINODE *mip)
     int blk, offset;
     INODE *tmpip;
 
-    mip->refCount--;                    // decrease refCount by 1
-    if(mip->refCount > 0){ return 1; }
-    if(mip->refCount == 0) { return 1; }
+    printf("iput(): dev = %d\n", mdev);
 
-    // Write inode back to disk. Why?
-    // get block and offset using mailman algorithm
-    blk = (mip->ino -1) / 8 + InodeBeginBlock;
-    offset = (mip->ino -1) % 8;
-
-    // read the block into the buffer
-    get_block(mdev, blk, buf);
-    tmpip = (INODE *)buf + offset;
-    memcpy(tmpip, &mip->INODE, sizeof(INODE));
-
-    // put the block back into disk
-    put_block(mip->dev, blk, buf);
-    return 0;
 }
 
 int put_block(int mdev, int blk, char *buf)
@@ -300,11 +285,12 @@ This is the most important function of the FS. It converts a pathname, such as
 uint32_t getino(int dev, char *path)
 {
     uint32_t ino = 0;
-    char **tokensArray;
-    MINODE *mip;
+    char **names;               // Holds the tokens of path i.e. /a/b/c/ -> [a][b][c]...
+    MINODE *mip = 0;
 
-    if (path) {
-        tokensArray = tokenize(pathname);
+    if (path[0]) {
+
+        names = tokenize(pathname);     // Break path up into tokens
     }
     else{       // path is not given
 
@@ -319,46 +305,116 @@ uint32_t getino(int dev, char *path)
     // No if the path begins with '/' character then we are starting from root
     // Absolute directories always has path starting with '/'
     if (path[0] == '/') {
-        ip = &(root->INODE);        // inode pointer points to the root INODE
+        ip = &root->INODE;        // inode pointer points to the root INODE
         ino = root->ino;            // inode number is root->ino
     }
-    else{ // Start from cwd: Relative paths do not start with '/' i.e. cs360/is/fun
+    else{
+        // Start from cwd: Relative paths do not start with '/' i.e. cs360/is/fun
         // We need to find the inode number for the last dir in the path i.e. fun
-        ip = &running->cwd->INODE;  // inode pointer points to the CWD INODE
+        ip = &running->cwd->INODE;
     }
 
     int i = 0;
-    while (tokensArray[i]) {
-        printf("path %d = %s\n", i, tokensArray[i++]);
+
+    // search for ino of each path in the names[][]
+    while (names[i]) {
+        printf("searching ino of %s\n", names[i]);
+        ino = search(dev, names[i], ip);            // remember: ip = &running->cwd->INODE; where running is a PROC *running
+
+        if(ino <= 0){
+            // The path doesnt exits put mip back into the device
+            if(mip)
+            {
+                iput(mip->dev, mip);
+                return -1;
+            }
+        }
+        printf("[%s] ino = %d\n", names[i], ino);
+
+        if(mip){
+            printf("put mip back into device\n");
+            iput(mip->dev, mip);
+        }
+        i++;
+        printf("get the mip for: name = %s device = %d ino = %d\n", names[i], dev, ino);
+        if(names[i])
+        {
+            mip = iget(dev, ino);
+            ip = &mip->INODE;
+        }
+
     }
 
+    i = 0;
+    while (names[i]) { free(names[i++]); }
+
+    printf("return: ino = %d\n", ino);
     return ino;
 }
+uint32_t search(int mdev, char *name, INODE *ip)
+{
+    int i = 0;
+    char *cp;
+    DIR *dp;
+    char mbuf[BLOCK_SIZE], tempEnt[256];
+
+    // search the first 12 blocks DIRECT BLOCKS
+    while (i < 12) {
+        if(ip->i_block[i] == 0){ break; }  // i_block[i] is empty
+
+        // read the block into buffer
+        get_block(dev, ip->i_block[i++], mbuf);
+        dp = (DIR *)mbuf;
+        cp = mbuf;
+
+        while (cp < mbuf + BLOCK_SIZE) {
+            bzero(tempEnt, 256);
+            strncpy(tempEnt, dp->name, dp->name_len);
+
+            // Match the name of the directory with the dp->name
+            printf("compare: name = %s tempEnt = %s\n", name, tempEnt);
+            if(strcmp(tempEnt, name) == 0) {
+                printf("search() return: %d\n", dp->inode);
+                return dp->inode;                  // Inode belongs to the name we are looking for
+            }
+
+            // Next entry
+            cp += dp->rec_len;
+            dp = (DIR *)cp;
+        }
+    }
+
+    // if we reach here then the name was not found
+    return 0;
+}
+
 /*
   tokenize a pathname into components and their numbers n.
   Store the components in names[64][64] and let name[i] point at names[i];
   The components will be used to search for the inode of a pathname.
 */
-char ** tokenize(char *pathname)
+char ** tokenize(char *path)
 {
 
     int i = 0;
     char *token, *pathCopy;            // Holds a path name
+
     // A 2Dimensional Array char *names[256]
-    char **names = (char **)malloc(sizeof(char *) * 256);
+    char **pathArr = (char **)malloc(sizeof(char *) * 256);
 
     // preserve the pathname
-    pathCopy = strdup(pathname);
+    pathCopy = strdup(path);
 
-    // Get the first token from the pathname
-    names[i++] = strtok(pathCopy, "/");
-    while (names[i] = strtok(NULL, "/") != NULL) {
-    i++;
+    char *temp;
+    token = strtok(pathCopy, "/");
+    while (token) {
+        temp = (char*)malloc(sizeof(char) * strlen(token));
+        strcpy(temp, token);
+        pathArr[i++] = temp;
+        token = strtok(0, "/");
     }
 
-    names[i] = 0;
-
-    return names;
+    return pathArr;
 }
 void getInput()
 {
@@ -368,7 +424,7 @@ void getInput()
 
     printf("cs360@mysh: ");
     fgets(line, 1024, stdin);
-    line[strlen(line) - 1] = 0;     // kill \n 
+    line[strlen(line) - 1] = 0;     // kill \n
 }
 /***************** Commands Functions **************/
 
@@ -416,12 +472,11 @@ int ls(char *path)
         return -1;
     }
 
-    // Get the indoe from minode[]
+    // // Get the indoe from minode[]
     mip = iget(dev, ino);
-    printf("ino = %d\n",ino);
+    printf("ls() dev = %d ino = %d\n", mip->dev, ino);
 
-    // mip points at minode;
-    // Each data block of mip->INODE contains DIR entries
+    // // Each data block of mip->INODE contains DIR entries
     findDatablocks(&mip->INODE, 0);
     iput(mip->dev, mip);
     getchar();
@@ -448,27 +503,28 @@ int cd(char *path)
         printf("Invalid Path\n");
         return -1;
     }
-    //
+
     // // get the inode from minode[] array
-    // mip = iget(dev, ino);
-    //
-    // printf("checking if %s is a directory!\n", path);
-    // getchar();
-    // // We can only cd into a directory. Verify that the path provided is indeed
-    // // a directory
-    // if(!S_ISDIR(mip->INODE.i_mode))
-    // {
-    //     printf("Error: given path is not a directory\n");
-    //     iput(dev, mip);             // put the inode back into the disk
-    //     return -1;
-    // }
-    //
-    // // if it is a directory then put the inode back into device
-    // iput(dev, running->cwd);
-    //
-    // // Change current working directory to the mip inode in minode[]
-    // // that belongs to the path give.
-    // running->cwd = mip;
+    mip = iget(dev, ino);
+    printf("cd(): mip->dev = %d\n", mip->dev);
+    printf("checking if %s is a directory!\n", path);
+    getchar();
+
+    // // We can only cd into a directory. Verify that the path provided is indeed a directory
+    if(!S_ISDIR(mip->INODE.i_mode))
+    {
+        printf("Error: given path is not a directory\n");
+        iput(dev, mip);             // put the inode back into the disk
+        return -1;
+    }
+
+    printf("%s is a directory\n", path);
+
+    // if it is a directory then put the inode back into device
+    // Change current working directory to the mip inode in minode[]
+    // that belongs to the path give.
+    iput(dev, running->cwd);
+    running->cwd = mip;
 }
 
 
@@ -537,7 +593,7 @@ int printDirEntry(int blk, int pstat)
     // Search the buffer for all dir entries
     while (cp < mbuf + BLOCK_SIZE) {
         if (pstat) {
-            printstat(dp);
+            printf("print file stat... \n");
         }
         else
         {
@@ -556,9 +612,55 @@ int printDirEntry(int blk, int pstat)
     return 0;
 }
 
-int printstat(DIR *dp)
+/** HOW TO MKDIR **
+Assume: command line = "mkdir pathname" OR  "creat pathname"
+Extract cmd, pathname from line and save them as globals.
+    make_dir()
+    {
+    1. pahtname = "/a/b/c" start mip = root;         dev = root->dev;
+                =  "a/b/c" start mip = running->cwd; dev = running->cwd->dev;
+    2. Let
+         parent = dirname(pathname);   parent= "/a/b" OR "a/b"
+         child  = basename(pathname);  child = "c"
+    3. Get the In_MEMORY minode of parent:
+             pino  = getino(&dev, parent);
+             pip   = iget(dev, pino);
+       Verify : (1). parent INODE is a DIR (HOW?)   AND
+                (2). child does NOT exists in the parent directory (HOW?);
+    4. call mymkdir(pip, child);
+    5. inc parent inodes's link count by 1;
+       touch its atime and mark it DIRTY
+    6. iput(pip);
+    }
+*/
+
+int make_dir(char *path)
 {
-    printf("file information\n");
+    char parent[256], child[256], pathnameCopy[512];
+    MINODE *mip;
+    int mdev, ino;
+
+    printf("mkdir(): path = %s\n", path);
+
+    // Clear the arrays
+    bzero(parent, 256);
+    bzero(child, 256);
+    bzero(pathnameCopy, 512);
+
+    // preserve the pathname
+    strcpy(pathnameCopy, path);
+    if(path[0] == '/')
+    {
+        mdev = root->dev;
+        printf("path starts from: root device = %d\n", mdev);
+    }
+    else{
+        mdev = running->cwd->dev;
+        printf("path starts running process cwd: running->cwd->dev = %d\n", mdev);
+    }
+
+
+    return 0;
 }
 
 // Prints the cwd using the running proc pointer

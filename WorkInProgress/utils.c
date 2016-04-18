@@ -287,10 +287,12 @@ uint32_t getino(int dev, char *path)
     uint32_t ino = 0;
     char **names;               // Holds the tokens of path i.e. /a/b/c/ -> [a][b][c]...
     MINODE *mip = 0;
+    printf("******************************\n");
+    printf("getino() path = %s\n", path);
 
     if (path[0]) {
 
-        names = tokenize(pathname);     // Break path up into tokens
+        names = tokenize(path);     // Break path up into tokens
     }
     else{       // path is not given
 
@@ -726,7 +728,7 @@ int make_dir(char *path)
     char *dirc, *basec, *bname, *dname;
 
     MINODE *mip;
-    int mdev, ino;
+    int pdev, ino;
 
     printf("mkdir(): path = %s\n", path);
 
@@ -737,6 +739,19 @@ int make_dir(char *path)
     bname = basename(basec);
 
     printf("dirname=%s, basename=%s\n", dname, bname);
+
+    if(path[0] == '/')
+    {
+        pdev = root->dev;           // start from root
+    }
+    else
+    {
+        pdev = running->cwd->dev;   // start from current working directory
+    }
+
+    // 1. Get parents ino
+    ino = getino(pdev, dname);
+    printf("parent ino = %d", ino);
 
 
 

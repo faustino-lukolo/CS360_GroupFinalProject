@@ -17,7 +17,7 @@ extern char *rootdev;
 extern MINODE minode[NMINODES];
 extern char blkBuf[BLOCK_SIZE];
 extern int ninodes, nblocks, ifree, bfree, InodeBeginBlock;
-
+extern GD *gp;
 void get_block(int dev, int blk, char mbuf[])
 {
     // using the device descriptor seek to the block we want to read i.e (blk & 1024)
@@ -375,7 +375,9 @@ uint32_t search(int mdev, char *name, INODE *ip)
             printf("compare: name = %s tempEnt = %s\n", name, tempEnt);
             if(strcmp(tempEnt, name) == 0) {
                 printf("search() return: %d\n", dp->inode);
-                return dp->inode;                  // Inode belongs to the name we are looking for
+                
+                // Inode belongs to the name we are looking for
+                return dp->inode;                  
             }
 
             // Next entry
@@ -388,6 +390,89 @@ uint32_t search(int mdev, char *name, INODE *ip)
     return 0;
 }
 
+/* Gets the local inode's string name using the the parent inode pointer
+  to look through the parents inode direct blocks until found then
+  return the name through perameter pointer. Return 1 if found else 0
+ */
+uint32_t getinoname(MINODE *parent, int myinode, char *inoname)
+{
+	int i = 0;
+	int found = 0;
+	char tempname[128];
+	char buf[BLOCK_SIZE];
+	char *cp;
+	DIR *localdirinoptr;
+	INODE *localinoptr; 
+	// 
+	localinoptr = &parent->INODE;
+	
+	for(i = 0; found == 0, i < 12; i++)
+	{
+		get_block(dev, localinoptr->i_block[i], buf);
+		cp = buf;
+		localdirinoptr = (DIR *)buf;
+		strcpy(tempname, localdirinoptr->name);
+	
+		// ensure tempname ends with null terminator
+		tempname[localdirinoptr->name_len] = '\0';
+		
+		// test
+		printf("Inside get inode name function");
+		
+		
+		while(cp < (buf + BLOCK_SIZE))
+		{
+			// Right Dir entery found!
+			if(localdirinoptr->inode == myinode)
+			{
+				strcpy(inoname, tempname);
+				found = 1;
+				break;
+			}
+			
+			// Increment cp to next address in buff
+			cp += localdirinoptr->rec_len;
+			localdirinoptr = (DIR *)cp;
+			strcpy(tempname, localdirinoptr->name);
+			// ensure tempname ends with null terminator
+			tempname[localdirinoptr->name_len] = '\0';
+			
+		}
+		
+	}
+	return found;
+}
+/* mip (memory inode ptr) is the inode data member (minode) we are looking into
+ * and myinode is the current inode number's save location and
+ * parentino is parent inode numbers's save location.
+ * This function takes in mip and gets it's and it's parents inode
+ * number.
+*/
+uint32_t findinode(MINODE *mip, int *myinode, int *parentino)
+{
+	char *cp;
+	char buf[BLOCK_SIZE];
+	DIR *localdirinoptr;
+	INODE *localinoptr;
+	
+	// test
+	printf("Inside find inode function\n");
+	
+	localinoptr = &mip->INODE;
+	get_block(mip->dev, localinoptr->i_block[0], buf);
+	cp = buf;
+	
+	// set myinode pointer
+	localdirinoptr = (DIR *)buf;
+	*myinode = localdirinoptr->inode;
+	
+	// set myinodes parents pointer
+	cp += localdirinoptr->rec_len; // Increment cp to next address in buff
+	localdirinoptr = (DIR *)cp;
+	*parentino = localdirinoptr->inode;
+	
+	return 0;
+}
 /*
   tokenize a pathname into components and their numbers n.
   Store the components in names[64][64] and let name[i] point at names[i];
@@ -664,7 +749,7 @@ int make_dir(char *path)
 }
 
 // Prints the cwd using the running proc pointer
-int pwd()
+int pwd(char *pathstr)
 {
 	char temp_name[128];
 	char temp_path[256];
@@ -674,11 +759,38 @@ int pwd()
 	
 	strcpy(path, "");
 	
-	LocalMinoPtr = 
+	LocalMinoPtr = running->cwd;
+	
+	findinode(LocalMinoPtr, &ino_num, &parent_ino_num);
 	
 	
-	
-	
+	while(parent_ino_num != ino_num)
+	{
+		// test
+        printf("PINoN = %d, LinoN = %d\n", parent_ino_num, ino_num);
+        
+		LocalMinoPrntPtr = (MINODE *)iget(dev, parent_ino_num);
+		
+		// test
+        printf("before get ino name\n");
+		getinoname(LocalMinoPrntPtr, ino_num, temp_name);
+		
+		
+		// test
+		//printf("Inside get inode name function");
+		
+		strcpy(temp_path, path);
+        strcpy(path, temp_name);
+        strcat(path, "/");
+        strcat(path, temp_path);
+		findinode(LocalMinoPrntPtr, &ino_num, &parent_ino_num);
+	}
+	strcpy(temp_path, path);
+	strcpy(path, "/");
+    strcat(path, temp_path);
+
+    printf("%s\n", path);
+    return 0;
 }
 
 

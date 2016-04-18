@@ -16,7 +16,38 @@
 typedef struct ext2_group_desc  GD;
 typedef struct ext2_super_block SUPER;
 typedef struct ext2_inode       INODE;
+/* ext2_inode struct & members
+struct ext2_inode {
+  //*************************************************************************
+  u16  i_mode;          // same as st_mode in stat() syscall
+  u16  i_uid;                     // ownerID
+  u32  i_size;                    // file size in bytes
+  u32  i_atime;                   // time fields  
+  u32  i_ctime;
+  u32  i_mtime;
+  u32  i_dtime;
+  u16  i_gid;                     // groupID
+  u16  i_links_count;             // link count
+  u32  i_blocks;                  // IGNORE
+  u32  i_flags;                   // IGNORE
+  u32  i_reserved1;               // IGNORE
+  u32  i_block[15];               // See details below
+  //**************************************************************************
+*/  
 typedef struct ext2_dir_entry_2 DIR;    // need this for new version of e2fs
+/* ext2_dir_entry_2 struct & members
+struct ext2_dir_entry_2 {
+u32 inode;    //inode number; count from 1, NOT 0
+u16 rec_len;  // this entry's length in bytes
+u8 name_len;  // name length in bytes
+u8 file_type; //  not used
+char name[EXT2_NAME_LEN];
+};*/
+
+
+
+//not used
+//name: 1 -255 chars, no NULL byte
 
 GD    *gp;
 SUPER *sp;
@@ -84,7 +115,7 @@ typedef struct Proc{
 
 // In-memory inodes structure
 typedef struct Minode{
-  INODE INODE;               // disk inode
+  INODE INODE;               // disk inode, compile knows about struct name format
   int   dev, ino;
 
   int   refCount;

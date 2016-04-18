@@ -1,6 +1,6 @@
 #include "utils.h"
 
-/* Globals
+/* Globals in other file
 MINODE *root;
 char pathname[128], parameter[128], *name[128], cwdname[128];
 char names[128][256];
@@ -560,3 +560,64 @@ int printstat(DIR *dp)
 {
     printf("file information\n");
 }
+
+// Prints the cwd using the running proc pointer
+int pwd()
+{
+	char temp_name[128];
+	char temp_path[256];
+	char path[256];
+	int ino_num, parent_ino_num;
+	MINODE *LocalMinoPrntPtr, *LocalMinoPtr; 
+	
+	strcpy(path, "");
+	
+	LocalMinoPtr = 
+	
+	
+	
+	
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

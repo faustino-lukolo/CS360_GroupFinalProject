@@ -406,7 +406,7 @@ uint32_t getinoname(MINODE *parent, int myinode, char *inoname)
 	// 
 	localinoptr = &parent->INODE;
 	
-	for(i = 0; found == 0, i < 12; i++)
+	for(i = 0; found == 0 && i < 12; i++)
 	{
 		get_block(dev, localinoptr->i_block[i], buf);
 		cp = buf;
@@ -417,7 +417,7 @@ uint32_t getinoname(MINODE *parent, int myinode, char *inoname)
 		tempname[localdirinoptr->name_len] = '\0';
 		
 		// test
-		printf("Inside get inode name function");
+		printf("Inside get inode name function\n");
 		
 		
 		while(cp < (buf + BLOCK_SIZE))
@@ -440,6 +440,7 @@ uint32_t getinoname(MINODE *parent, int myinode, char *inoname)
 		}
 		
 	}
+	
 	return found;
 }
 /* mip (memory inode ptr) is the inode data member (minode) we are looking into
@@ -777,7 +778,7 @@ int pwd(char *pathstr)
 		
 		
 		// test
-		//printf("Inside get inode name function");
+		printf("outside get inode name function");
 		
 		strcpy(temp_path, path);
         strcpy(path, temp_name);

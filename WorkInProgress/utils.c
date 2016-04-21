@@ -102,7 +102,7 @@ int mount_root(char *devName)
 {
     // Local variables for file system operations
     int i, ino;
-    int ninodes, nblocks, ifree, bfree;
+
 
     char buf[BLOCK_SIZE];           // buffer for reading block
     MOUNT *mp;
@@ -161,8 +161,8 @@ int mount_root(char *devName)
 
     /*Copy the group descrip bmap and imap and InodeBeginBlock (Inode Table)
       into mounttab[0] */
-    mp->bmap    = gp->bg_block_bitmap;
-    mp->imap    = gp->bg_inode_bitmap;
+    mp->bmap    = bmap = gp->bg_block_bitmap;
+    mp->imap    = imap = gp->bg_inode_bitmap;
 
 
     mp->iblock  = InodeBeginBlock = gp->bg_inode_table;     // Save the inode begin block
@@ -806,16 +806,93 @@ int my_mkdir(MINODE *pip, char *bname)
 
     int inumber, bnumber;
 
+    // Step 1: Allocate a new inode inside the pip->dev
+    inumber = ialloc(pip->dev);
+
+    // Step 2: Allocate a new block inside disk
+    bnumber = balloc(pip->dev);
 
 
-
-
-
-
+    return 0;
 
 
 }
 
+// Utility function to allocate an Inode
+int ialloc(int pdev)
+{
+    printf("Allocating inode in dev %d\n", pdev);
+    char buf[BLOCK_SIZE];
+
+    printf("reading imap block #%dfrom disk\n", imap);
+    // Step 1: get the imap block from disk into the buf
+    get_block(pdev, imap, buf);
+    printf("ninodes = %d\n", ninodes);
+
+    // ninodes is global number of inodes in disk.
+    int i = 0;
+    while(i < ninodes)
+    {
+
+        // Find a free inode bitmap
+        if(tst_bit(buf, i) == 0)
+        {
+            printf("free bit found: i = %d\n", i);
+
+            // Step 2: set the bit
+            set_bit(buf, i);
+
+
+        }
+
+        i++;
+    }
+
+}
+
+int balloc(int pdev)
+{
+
+    return 0;
+
+
+}
+
+int tst_bit(char *buf, int i)
+{
+
+    printf("tst_bit()\n");
+    int byte, offset;
+    // Step 1: Use mailman's  algorithm
+    byte = i / 8;
+    offset = i % 8;
+
+    // bit is set to 0 or 1
+    int bit = (*(buf + byte) >> offset) & 1;
+
+    //printf("tst_bit(): bit = %d\n", bit);
+
+    return bit;
+}
+int set_bit(char *buf, int i)
+{
+    int byte, offset;
+    char *mbuf;
+    char c;
+
+    byte = i  / 8;
+    offset = i % 8;
+
+    mbuf = (buf + byte);
+    c = *mbuf;
+
+    c |= (1 << offset);
+    printf("setting bit = %c", c);
+
+    *mbuf = c;
+
+    return 1;
+}
 // Prints the cwd using the running proc pointer
 int pwd(char *pathstr)
 {
@@ -845,7 +922,7 @@ int pwd(char *pathstr)
 
 
 		// test
-		printf("outside get inode name function");
+		printf("outside get inode name function\n");
 
 		strcpy(temp_path, path);
         strcpy(path, temp_name);

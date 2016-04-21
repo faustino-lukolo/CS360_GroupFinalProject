@@ -6,7 +6,7 @@
 
 /************************ globals *****************************/
 char cmd[32], pathname[128], params[64], cwdname[128], blkBuf[BLOCK_SIZE], line[1024];
-int ninodes, nblocks, ifree, bfree, InodeBeginBlock, nproc, dev;
+int ninodes, nblocks, ifree, bfree, InodeBeginBlock, nproc, dev, bmap, imap;
 
 int iblock;
 
@@ -45,6 +45,10 @@ int pwd(char *pathstr);
 
 // Helpers
 int my_mkdir(MINODE *pip, char *bname);
+int ialloc(int pdev);
+int balloc(int pdev);
+int tst_bit(char *buf, int i);
+int set_bit(char *buf, int i);
 
 
 

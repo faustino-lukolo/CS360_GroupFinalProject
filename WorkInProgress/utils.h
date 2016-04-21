@@ -43,6 +43,10 @@ int cd(char *path);
 int make_dir(char *path);
 int pwd(char *pathstr);
 
+// Helpers
+int my_mkdir(MINODE *pip, char *bname);
+
+
 
 // ext2 utils functions
 int findDatablocks(INODE *ip, int pstat);

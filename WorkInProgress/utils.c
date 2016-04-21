@@ -725,21 +725,14 @@ Extract cmd, pathname from line and save them as globals.
 
 int make_dir(char *path)
 {
-    char *dirc, *basec, *bname, *dname;
+    char *dirc, *basec, *child, *parent;
 
     MINODE *mip;
     int pdev, ino;
 
     printf("mkdir(): path = %s\n", path);
 
-    // Get basename and dirname
-    dirc = strdup(path);
-    basec = strdup(path);
-    dname = dirname(dirc);
-    bname = basename(basec);
-
-    printf("dirname=%s, basename=%s\n", dname, bname);
-
+    // Step 1: check if the pathname is absolute or relative to current working directory
     if(path[0] == '/')
     {
         pdev = root->dev;           // start from root
@@ -749,13 +742,78 @@ int make_dir(char *path)
         pdev = running->cwd->dev;   // start from current working directory
     }
 
-    // 1. Get parents ino
-    ino = getino(pdev, dname);
+
+    // Step 2: get the parent (dirname ) and child (basename)
+    // if directory is /a/b/c the parent = /a/b child = c or if directory a/b/c then parent is a/b and child is c
+    // if command is mkdir C then parent is . and child is C
+    dirc = strdup(path);
+    basec = strdup(path);
+    parent = dirname(dirc);
+    child = basename(basec);
+
+    printf("dirname=%s, basename=%s\n", parent, child);
+
+
+    // Step 3: Get the parent ino using dev
+    ino = getino(pdev, parent);
     printf("parent ino = %d", ino);
 
+    // Make sure ino is valid
+    if(ino <= 0)
+    {
+        printf("Error: path does not exists\n");
+        return -1;
+    }
+
+    // Step 4: Get the In_MEMORY minode of parent:
+    mip = iget(pdev, ino);
+    printf("in_MEMORY minode of parent: dev = %d\n", mip->dev);
+
+    // Step 5: Verify parent INODE is a DIR (HOW?)
+
+    if(!S_ISDIR(mip->INODE.i_mode))
+    {
+        printf("Path is not a directory\n");
+        // put inode back into dev
+        iput(pdev, mip);
+        return -1;
+    }
+
+     //Step 6: Verify  child does NOT exists in the parent directory (HOW?);
+     // By calling the search function. If the ino returned by the search() then the directory exists
+     ino = search(pdev, child, &mip->INODE);
+    if(ino > 0)
+    {
+        printf("ERROR: Directory with name \"%s\" already exists.\n", child);
+        // put inode back into dev
+        iput(pdev, mip);
+        return -1;
+    }
+
+    // Step 7: Call my_mkdir() passing parent in_MEMORY minode of parent and the child (basename)
+    int result = my_mkdir(mip, child);
 
 
     return 0;
+}
+
+int my_mkdir(MINODE *pip, char *bname)
+{
+    int ino;
+    MINODE *mip;
+    DIR *dp;
+    char *cp;
+
+    int inumber, bnumber;
+
+
+
+
+
+
+
+
+
 }
 
 // Prints the cwd using the running proc pointer

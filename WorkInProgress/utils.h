@@ -36,6 +36,15 @@ uint32_t findinode(MINODE *mip, int *myinode, int *parentino);
 void get_block(int dev, int blk, char buf[]);
 int is_ext2(SUPER *sptr);
 
+/*Inode,Block Alloc/Dealloc Functions*/
+void dec_free_inodes(int dev);
+void inc_free_inodes(int dev);
+void dec_free_blocks(int dev);
+void inc_free_blocks(int dev);
+int ialloc(int pdev);
+int balloc(int pdev);
+int idealloc(int dev, int ino);
+int bdealloc(int dev, int bno);
 
 /* Start of Linux Commands Functions */
 int ls(char *path);
@@ -45,10 +54,10 @@ int pwd(char *pathstr);
 
 // Helpers
 int my_mkdir(MINODE *pip, char *bname);
-int ialloc(int pdev);
-int balloc(int pdev);
+// Bit functions
 int tst_bit(char *buf, int i);
 int set_bit(char *buf, int i);
+int unset_bit(char *buf, int i);
 
 
 

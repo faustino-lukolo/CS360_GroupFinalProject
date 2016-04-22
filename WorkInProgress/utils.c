@@ -514,6 +514,248 @@ void getInput()
     fgets(line, 1024, stdin);
     line[strlen(line) - 1] = 0;     // kill \n
 }
+
+/***************** Bit Functions **************/
+/* The i in the perameters is the bit, buf is the buffer we are searching into.
+ * We use mailmans algorithm. Note 1 bit reps a block of size 4kB*/
+int tst_bit(char *buf, int i)
+{
+
+    printf("tst_bit()\n");
+    int byte, offset;
+    // Step 1: Use mailman's  algorithm
+    byte = i / 8;
+    offset = i % 8;
+
+    // bit is set to 0 or 1
+    int bit = (*(buf + byte) >> offset) & 1;
+
+    //printf("tst_bit(): bit = %d\n", bit);
+
+    return bit;
+}
+int set_bit(char *buf, int i)
+{
+    int byte, offset;
+    char *mbuf;
+    char c;
+
+    byte = i  / 8;
+    offset = i % 8;
+
+    mbuf = (buf + byte);
+    c = *mbuf;
+
+    c |= (1 << offset);
+    printf("setting bit = %c", c);
+
+    *mbuf = c;
+
+    return 0;
+}
+int unset_bit(char *buf, int i)
+{
+	int byte, offset;
+	byte = i/8;
+	offset = i%8;
+	buf[byte] &= (0 << offset);
+	return 0;
+}
+
+/***************** Inode,Block Alloc/Dealloc Functions **************/
+
+// Mo: This function decriments the free_inodes_count members of 
+// super and group discriptor blocks by 1
+void dec_free_inodes(int dev)
+{
+	SUPER *sp;
+	GD *gp;
+	char buf[BLOCK_SIZE];
+	
+	// Decriment from Super structure.
+	get_block(dev, SUPERBLOCK, buf);
+	sp = (SUPER *)buf; 
+	sp->s_free_inodes_count--;
+	put_block(dev, SUPERBLOCK, buf);
+	
+	// Decriment from Group Discriptor structure.
+	get_block(dev, GDBLOCK, buf);
+	gp = (GD *)buf; 
+	gp->bg_free_inodes_count--;
+	put_block(dev, GDBLOCK, buf);
+	
+	printf("Decrimented free inodes count from SUPER and GD by 1\n");	
+}
+// Mo: This function incriments the free_inodes_count members of 
+// super and group discriptor blocks by 1
+void inc_free_inodes(int dev)
+{
+	SUPER *sp;
+	GD *gp;
+	char buf[BLOCK_SIZE];
+	
+	// Incriment from Super structure.
+	get_block(dev, SUPERBLOCK, buf);
+	sp = (SUPER *)buf; 
+	sp->s_free_inodes_count++;
+	put_block(dev, SUPERBLOCK, buf);
+	
+	// Incriment from Group Discriptor structure.
+	get_block(dev, GDBLOCK, buf);
+	gp = (GD *)buf; 
+	gp->bg_free_inodes_count++;
+	put_block(dev, GDBLOCK, buf);
+	
+	printf("Incrimented free inodes count from SUPER and GD by 1\n");	
+}
+// Mo: This function decriments the free_blocks_count members of 
+// super and group discriptor blocks by 1
+void dec_free_blocks(int dev)
+{
+	SUPER *sp;
+	GD *gp;
+	char buf[BLOCK_SIZE];
+	
+	// Decriment from Super structure.
+	get_block(dev, SUPERBLOCK, buf);
+	sp = (SUPER *)buf; 
+	sp->s_free_blocks_count--;
+	put_block(dev, SUPERBLOCK, buf);
+	
+	// Decriment from Group Discriptor structure.
+	get_block(dev, GDBLOCK, buf);
+	gp = (GD *)buf; 
+	gp->bg_free_blocks_count--;
+	put_block(dev, GDBLOCK, buf);
+	
+	printf("Decrimented free blocks count from SUPER and GD by 1\n");
+}
+// Mo: This function incriments the free_blocks_count members of 
+// super and group discriptor blocks by 1
+void inc_free_blocks(int dev)
+{
+	SUPER *sp;
+	GD *gp;
+	char buf[BLOCK_SIZE];
+	
+	// Incriment from Super structure.
+	get_block(dev, SUPERBLOCK, buf);
+	sp = (SUPER *)buf; 
+	sp->s_free_blocks_count++;
+	put_block(dev, SUPERBLOCK, buf);
+	
+	// Incriment from Group Discriptor structure.
+	get_block(dev, GDBLOCK, buf);
+	gp = (GD *)buf; 
+	gp->bg_free_blocks_count++;
+	put_block(dev, GDBLOCK, buf);
+	
+	printf("Incrimented free blocks count from SUPER and GD by 1\n");
+}
+//Mo: Utility function to allocate an Inode
+// & returns inode number if the're free inodes
+int ialloc(int pdev)
+{
+    printf("Allocating inode in dev %d\n", pdev);
+    char buf[BLOCK_SIZE];
+
+    printf("reading imap block #%d from disk\n", imap);
+    // Step 1: get the imap block from disk into the buf
+    get_block(pdev, imap, buf);
+    printf("ninodes = %d\n", ninodes);
+
+    // ninodes is global number of inodes in disk.
+    int i = 0;
+    while(i < ninodes)
+    {
+
+        // Find a free inode bitmap
+        if(tst_bit(buf, i) == 0)
+        {
+            printf("free bit found: i = %d\n", i);
+
+            // Step 2: set the bit
+            set_bit(buf, i);
+            // Step 3: decriment # of free inodes since we're alloc
+			dec_free_inodes(pdev);
+			// Step 4: Write inode changes back into fs structure
+			put_block(pdev, imap, buf);
+			// Step 5:Return inode number location
+			return i+1;
+        }
+
+        i++;
+    }
+	printf("no more free inodes in ialloc()\n");
+	return 0;
+}
+//Mo: Utility function to allocate a block number
+// given the file discriptor pdev & returns block number
+int balloc(int pdev)
+{
+	char buf[BLOCK_SIZE];
+	printf("Allocating block in dev %d\n", pdev);
+	printf("reading block bit map #%d from disk\n", bmap);
+    // Step 1: get the bmap block from disk into the buf
+    get_block(pdev, bmap, buf);
+	
+	// nblocks is global number of blocks in disk.
+    int i = 0;
+    while(i < nblocks)
+    {
+
+        // Find a free block from bitmap
+        if(tst_bit(buf, i) == 0)
+        {
+            printf("free bit found: i = %d\n", i);
+
+            // Step 2: set the bit
+            set_bit(buf, i);
+            // Step 3: decriment # of free blocks since we're alloc
+		    dec_free_blocks(pdev);
+			// Step 4: Write block changes back into fs structure
+			put_block(pdev, bmap, buf);
+			// Step 5:Return block number location
+			return i+1;
+        }
+
+        i++;
+    }
+	printf("no more free blocks in balloc()\n");
+	
+    return 0;
+}
+// deallocates inode given a inode number, ino
+int idealloc(int dev, int ino)
+{
+	char buf[BLOCK_SIZE];
+	
+	// Read inode bitmap to buffer
+	get_block(dev, imap, buf);
+	// set bit in ino location in buffer to 0 since dealloc
+	unset_bit(buf, ino);
+	// decriment # of free inodes cause dealloc
+	dec_free_inodes(dev);
+	// Write inode changes back into fs structure
+	put_block(dev, imap, buf); 
+	return 0;	
+}
+// deallocates block given a block number, bno
+int bdealloc(int dev, int bno)
+{
+	char buf[BLOCK_SIZE];
+	
+	// Read block bitmap to buffer
+	get_block(dev, bmap, buf);
+	// set bit in bno location in buffer to 0 since dealloc
+	unset_bit(buf, bno);
+	// decriment # of free blocks cause dealloc
+	dec_free_blocks(dev);
+	// Write block changes back into fs structure
+	put_block(dev, bmap, buf); 
+	return 0;	
+}
+
 /***************** Commands Functions **************/
 
 /*5. ls [pathname] command:
@@ -723,6 +965,7 @@ Extract cmd, pathname from line and save them as globals.
     }
 */
 
+// Not finished
 int make_dir(char *path)
 {
     char *dirc, *basec, *child, *parent;
@@ -796,7 +1039,7 @@ int make_dir(char *path)
 
     return 0;
 }
-
+// ------ToDo
 int my_mkdir(MINODE *pip, char *bname)
 {
     int ino;
@@ -818,82 +1061,7 @@ int my_mkdir(MINODE *pip, char *bname)
 
 }
 
-// Utility function to allocate an Inode
-int ialloc(int pdev)
-{
-    printf("Allocating inode in dev %d\n", pdev);
-    char buf[BLOCK_SIZE];
-
-    printf("reading imap block #%dfrom disk\n", imap);
-    // Step 1: get the imap block from disk into the buf
-    get_block(pdev, imap, buf);
-    printf("ninodes = %d\n", ninodes);
-
-    // ninodes is global number of inodes in disk.
-    int i = 0;
-    while(i < ninodes)
-    {
-
-        // Find a free inode bitmap
-        if(tst_bit(buf, i) == 0)
-        {
-            printf("free bit found: i = %d\n", i);
-
-            // Step 2: set the bit
-            set_bit(buf, i);
-
-
-        }
-
-        i++;
-    }
-
-}
-
-int balloc(int pdev)
-{
-
-    return 0;
-
-
-}
-
-int tst_bit(char *buf, int i)
-{
-
-    printf("tst_bit()\n");
-    int byte, offset;
-    // Step 1: Use mailman's  algorithm
-    byte = i / 8;
-    offset = i % 8;
-
-    // bit is set to 0 or 1
-    int bit = (*(buf + byte) >> offset) & 1;
-
-    //printf("tst_bit(): bit = %d\n", bit);
-
-    return bit;
-}
-int set_bit(char *buf, int i)
-{
-    int byte, offset;
-    char *mbuf;
-    char c;
-
-    byte = i  / 8;
-    offset = i % 8;
-
-    mbuf = (buf + byte);
-    c = *mbuf;
-
-    c |= (1 << offset);
-    printf("setting bit = %c", c);
-
-    *mbuf = c;
-
-    return 1;
-}
-// Prints the cwd using the running proc pointer
+//Mo: Prints the cwd using the running proc pointer
 int pwd(char *pathstr)
 {
 	char temp_name[128];

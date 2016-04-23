@@ -1107,8 +1107,110 @@ int pwd(char *pathstr)
 }
 
 
+int rm_dir(char *path)
+{
+    char *parent, *child, *pathCopy;
+    uint32_t ino;
+
+    MINODE *pip;            // parent Inode pointer
+    MINODE *mip;            // In Memory Inode pointer
+
+    pathCopy = strdup(path);    // preserve orignal pathname
+
+    // check if path of the directory to be removed is given
+    if(path[0] == NULL)
+    {
+        perror("You must specify a pathname\n");
+        return -1;
+    }
+
+    // get the inode number
+    ino = getino(dev, path);
+
+    // check its a valid inode number
+    if(ino <= 0)
+    {
+        perror("Invalid! pathname not found\n");
+        return -1;
+    }
+
+    // get the minode (In memory inode from MINODE [] )
+    mip = iget(dev, ino);
+
+    // check the i_mode if its not a directory then error
+    if(!S_ISDIR(mip->INODE.i_mode))
+    {
+         // put the inode back
+        iput(mip->dev, mip);
+        return -1;
+    }
+
+    // Check the refCount of the inode to make sure directory is not in use
+    if(mip->refCount > 1)
+    {
+        perror("Error: directory is in use");
+        return -1;
+    }
+
+    // Check to make sure directory is empty
+    if(mip->INODE.i_links_count > 2)
+    {
+        perror("Error: directory is not empty");
+        return -1;
+    }
+
+    // Check datablocks of directory for files
+    if(dir_isempty(mip) > 0)
+    {
+        perror("Error: directory is not empty");
+    }
 
 
+}
+
+int dir_isempty(MINODE *mip)
+{
+    DIR *dp;                    // directory pointer contains points to direntries
+    char *cp;                   // points to a single directory entry
+    char buf[BLOCK_SIZE];       // holds contents of the block
+
+    int i = 0;
+
+    // First data blocks i_block[0] - i_block[11]
+    while(i < 12)
+    {
+        if(mip->INODE.i_block[i] == 0)
+        {
+            printf("directory is empty");
+            return 0;                   // directory is empty
+        }
+        // Get the block information
+
+        get_block(mip->dev, ip->i_block[i], buf);
+        dp = (DIR*)buf;
+        cp = buf;
+
+        char *tmp;
+        while(cp < buf + BLOCK_SIZE)
+        {
+            tmp = strdup(dp->name);
+            printf("found entry: %s\n", tmp);
+
+            if(strncmp(".", tmp, 1) && strncmp("..", tmp, 2))
+            {
+                printf("Found entries besides . .. there must be a link somewhere\n");
+                return 1;
+            }
+
+            cp += dp->rec_len;
+            dp = (DIR *)cp;
+        }
+
+        i++;
+    }
+
+
+}
 
 
 

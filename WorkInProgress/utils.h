@@ -50,6 +50,7 @@ int bdealloc(int dev, int bno);
 int ls(char *path);
 int cd(char *path);
 int make_dir(char *path);
+int rm_dir(char *path);
 int pwd(char *pathstr);
 
 // Helpers
@@ -65,8 +66,10 @@ int unset_bit(char *buf, int i);
 int findDatablocks(INODE *ip, int pstat);
 int printDirs(int blk, int pstat);
 int printstat(DIR *dp);
+int dir_isempty(MINODE *mip);
+
 
 /*Function pointers for commands */
-static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, pwd};
-static char *sh_cmds[] = {"ls", "cd", "mkdir", "pwd"};
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir,rm_dir, pwd};
+static char *sh_cmds[] = {"ls", "cd", "mkdir", "rmdir", "pwd"};
 #endif

@@ -16,7 +16,7 @@ int main(int argc, char *argv[], char *env[] ) {
         bzero(pathname, 128);
         bzero(params, 64);
         bzero(cmd, 32);
-        bzero(line, 256);
+        bzero(line, 1024);
 
         printf("P[%d] running proc\n",running->pid);
         getInput();
@@ -27,8 +27,15 @@ int main(int argc, char *argv[], char *env[] ) {
 
 
         if (params[0]) {
+            printf("params exists...\n");
             strcat(pathname, " ");
             strcat(pathname, params);
+        }
+
+        if(!pathname[0])
+        {
+            memset(pathname, 0, 128);
+            printf("Enter a valid pathname\n");
         }
 
         // Arguments are provided with pathname

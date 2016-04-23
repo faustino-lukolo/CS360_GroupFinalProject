@@ -22,7 +22,7 @@ struct ext2_inode {
   u16  i_mode;          // same as st_mode in stat() syscall
   u16  i_uid;                     // ownerID
   u32  i_size;                    // file size in bytes
-  u32  i_atime;                   // time fields  
+  u32  i_atime;                   // time fields
   u32  i_ctime;
   u32  i_mtime;
   u32  i_dtime;
@@ -33,7 +33,7 @@ struct ext2_inode {
   u32  i_reserved1;               // IGNORE
   u32  i_block[15];               // See details below
   //**************************************************************************
-*/  
+*/
 typedef struct ext2_dir_entry_2 DIR;    // need this for new version of e2fs
 /* ext2_dir_entry_2 struct & members
 struct ext2_dir_entry_2 {

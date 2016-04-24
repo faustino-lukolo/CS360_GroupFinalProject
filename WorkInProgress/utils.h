@@ -3,6 +3,7 @@
 
 #include "type.h"
 #include <stdlib.h>
+#include <time.h>
 
 /************************ globals *****************************/
 char cmd[32], pathname[128], params[64], cwdname[128], blkBuf[BLOCK_SIZE], line[1024];
@@ -45,6 +46,8 @@ int ialloc(int pdev);
 int balloc(int pdev);
 int idealloc(int dev, int ino);
 int bdealloc(int dev, int bno);
+int rm_child(MINODE *pip, char *child);
+
 
 /* Start of Linux Commands Functions */
 int ls(char *path);

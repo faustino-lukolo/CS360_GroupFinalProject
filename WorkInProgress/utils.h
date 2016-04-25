@@ -62,13 +62,12 @@ int get_super_block(int dev, char *buf);
 
 // Helpers
 int my_mkdir(MINODE *pip, char *bname);
-void PutNamePDir(MINODE parentMinoPtr, int ino, char *name);
+void PutNamePDir(MINODE *parentMinoPtr, int ino, char *name);
+int GetNotFullIblockIndex(MINODE *mip, char *name);
 // Bit functions
 int tst_bit(char *buf, int i);
 int set_bit(char *buf, int i);
 int unset_bit(char *buf, int i);
-int incrementFreeInodes(int dev);
-
 int touch_update(char *path);
 
 

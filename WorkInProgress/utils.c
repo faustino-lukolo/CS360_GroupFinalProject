@@ -1027,8 +1027,6 @@ Extract cmd, pathname from line and save them as globals.
     6. iput(pip);
     }
 */
-
-// Not finished
 int make_dir(char *path)
 {
     char *dirc, *basec, *child, *parent;
@@ -1079,14 +1077,15 @@ int make_dir(char *path)
 
     if(!S_ISDIR(mip->INODE.i_mode))
     {
-        printf("Path is not a directory\n");
+        printf("Parent Path is not a directory\n");
         // put inode back into dev
         iput(pdev, mip);
         return -1;
     }
 
      //Step 6: Verify  child does NOT exists in the parent directory (HOW?);
-     // By calling the search function. If the ino returned by the search() then the directory exists
+     // By calling the search function. If the ino returned by the search() 
+     // then the directory exists
      ino = search(pdev, child, &mip->INODE);
     if(ino > 0)
     {
@@ -1108,6 +1107,79 @@ int make_dir(char *path)
 	
     return 0;
 }
+//Mo: This function is similer to mkdir except it has a few different values in its
+// inode fields and has no data blocks
+int creat_file(char *path)
+{
+	int pdev,ino, PInoNum; // Parent Inode Number
+	char *dirc, *basec, *child, *parent;
+    MINODE *mip; // Parent MINODE ptr
+     
+
+    printf("creat path = %s\n", path);
+
+    // Step 1: check if the pathname is absolute or relative to current working directory
+    if(path[0] == '/')
+    {
+        pdev = root->dev;           // start from root
+    }
+    else
+    {
+        pdev = running->cwd->dev;   // start from current working directory
+    }
+
+
+    // Step 2: get the parent (dirname ) and child (basename)
+    // if directory is /a/b/c the parent = /a/b child file = c or if directory a/b/c 
+    // then parent is a/b and child fileis c
+    // if command is creat C then parent is . and child file is C
+    dirc = strdup(path);
+    basec = strdup(path);
+    parent = dirname(dirc);
+    child = basename(basec);
+
+    printf("creat() dirname=%s, basename=%s\n", parent, child); // Test
+	
+	// Get the parents inode number & MINODE ptr
+	PInoNum = getino(pdev, parent);
+	mip = (MINODE *)iget(pdev, PInoNum);
+	
+	printf("in_MEMORY minode of parent: dev = %d\n", mip->dev);
+
+    //  Verify parent INODE is a DIR (HOW?)
+    if(!S_ISDIR(mip->INODE.i_mode))
+    {
+        printf("creat(): Parent Path is not a Directory\n");
+        // put inode back into pdev
+        iput(pdev, mip);
+        return -1;
+    }
+    
+    // Verify  child does NOT exists in the parent directory (HOW?);
+    // By calling the search function. If the ino returned by the search() != 0
+    // then the file exists
+    ino = search(pdev, child, &mip->INODE);
+    if(ino > 0)
+    {
+        printf("creat(): ERROR: File with name %s already exists.\n", child);
+        // put inode back into dev
+        iput(pdev, mip);
+        return -1;
+    }
+    
+    my_creat(mip, child); 
+    
+    // Set inode time & PMIno dirty to 1
+    mip->INODE.i_atime = time(0L);
+    mip->dirty = 1;
+	 
+	// Finally write minode to disk
+	iput(pdev, mip);
+	
+	return 0;
+}
+
+
 // This function handles the dir entry into the MINODE, INODE, DIR fs structures.
 // pip points at the parent minode[] of "/a/b", name is a string "c")
 int my_mkdir(MINODE *pip, char *bname)
@@ -1127,17 +1199,18 @@ int my_mkdir(MINODE *pip, char *bname)
     // wirte contents to the INODE in memory).
     LocalMinodePtr = (MINODE *)iget(dev, InodeNum);
 
-    // Write contents to mip->INODE to make it as a DIR.
+    // Read contents from mip->INODE to make it as a DIR.
     LocalInodePtr = &LocalMinodePtr->INODE;
     //  Use ip-> to acess the INODE fields:
     LocalInodePtr->i_mode = 0x41ED;     // OR 040755: DIR type and permissions
     LocalInodePtr->i_uid  = running->uid;   // Owner uid
     LocalInodePtr->i_gid  = running->gid;   // Group Id
     LocalInodePtr->i_size = BLKSIZE;        // Size in bytes
-    LocalInodePtr->i_links_count = 2;           // Links count=2 because of . and ..
-    LocalInodePtr->i_atime = LocalInodePtr->i_ctime = LocalInodePtr->i_mtime = time(0L);  // set to current time
-    LocalInodePtr->i_blocks = 2;                    // LINUX: Blocks count in 512-byte chunks
-    LocalInodePtr->i_block[0] = BlockNum;             // new DIR has one data block
+    LocalInodePtr->i_links_count = 2;       // Links count=2 because of . and ..
+    // set to current time
+    LocalInodePtr->i_atime = LocalInodePtr->i_ctime = LocalInodePtr->i_mtime = time(0L);  
+    LocalInodePtr->i_blocks = 2;            // LINUX: Blocks count in 512-byte chunks
+    LocalInodePtr->i_block[0] = BlockNum;   // new DIR has one data block
     
     // Clear the iblocks
     while(i < 15)
@@ -1173,7 +1246,7 @@ int my_mkdir(MINODE *pip, char *bname)
     TempDirPtr = (DIR *)cp;
     TempDirPtr->inode = ParentIno;
     
-    // Have to account for the extra space.
+//FIX RS? Have to account for the extra space.
     RemainingSpace = BLKSIZE - ( 4 * ((8 + TempDirPtr->name_len + 3) / 4) );
     TempDirPtr->rec_len = RemainingSpace;
     TempDirPtr->name_len = strlen("..");
@@ -1191,9 +1264,55 @@ int my_mkdir(MINODE *pip, char *bname)
 
     return 0;
 }
+// This subsidary function creates a file by adjusting the
+// LocalMinodePtr->INODE and MINODE fields then writing the edited minode
+// back onto the disk.
+int my_creat(MINODE *pip, char *name)
+{
+	int i = 1, InodeNum;
+    INODE *LocalInodePtr;
+    MINODE *LocalMinodePtr;
+    
+    InodeNum = ialloc(dev);
+
+	// to load the inode into a minode[] (in order to
+    // wirte contents to the INODE in memory).
+    LocalMinodePtr = (MINODE *)iget(dev, InodeNum);
+
+    // Read mip-INODE to access/modify it fields
+    LocalInodePtr = &LocalMinodePtr->INODE;
+    
+    //  Use ip-> to acess the INODE fields:
+    LocalInodePtr->i_mode = 0x81A4;         // OR 0100644: REG type and permissions
+    LocalInodePtr->i_uid  = running->uid;   // Owner uid
+    LocalInodePtr->i_gid  = running->gid;   // Group Id
+    LocalInodePtr->i_size = 0;        		// Size in bytes, NO data blocks so size = 0
+    LocalInodePtr->i_links_count = 1;       // Links count=1 because it's a file
+    // set to current time
+    LocalInodePtr->i_atime = LocalInodePtr->i_ctime = LocalInodePtr->i_mtime = time(0L);  
+    LocalInodePtr->i_blocks = 2;            // LINUX: Blocks count in 512-byte chunks
+	LocalInodePtr->i_block[0] = 0;          // new file doesn't have any data blocks
+    
+    // Clear the iblocks
+    while(i < 15)
+    {
+        LocalInodePtr->i_block[i] = 0;
+        i++;
+    }
+	// mark minode dirty
+    LocalMinodePtr->dirty = 1;               
+    // write the new INODE out to disk.
+    iput(dev, LocalMinodePtr);
+	
+	// Last put file name entry into the parent(pip) minode -> inode's i_blocks[] 
+	PutNamePDir(pip, InodeNum, name);
+	return 0; 
+}
+
+
 /*Mo: This function adds a name (folder name..) entry to the parent 
  * minode pointer's next availible data block. If the current data block 
- *  with the given name is full then we create a disk block at the next 
+ * with the given name is full then we create a disk block at the next 
  * index of i_block.
  * Note: does only direct blocks
  */

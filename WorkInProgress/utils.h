@@ -55,6 +55,7 @@ int cd(char *path);
 int make_dir(char *path);
 int rm_dir(char *path);
 int pwd(char *pathstr);
+int creat_file(char *path);
 
 // BLOCK Operations
 int get_super_block(int dev, char *buf);
@@ -64,6 +65,8 @@ int get_super_block(int dev, char *buf);
 int my_mkdir(MINODE *pip, char *bname);
 void PutNamePDir(MINODE *parentMinoPtr, int ino, char *name);
 int GetNotFullIblockIndex(MINODE *mip, char *name);
+int my_creat(MINODE *pip, char *name); 
+
 // Bit functions
 int tst_bit(char *buf, int i);
 int set_bit(char *buf, int i);
@@ -79,6 +82,6 @@ int dir_isempty(MINODE *mip);
 
 
 /*Function pointers for commands */
-static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir,rm_dir, pwd};
-static char *sh_cmds[] = {"ls", "cd", "mkdir", "rmdir", "pwd"};
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, pwd};
+static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "pwd"};
 #endif

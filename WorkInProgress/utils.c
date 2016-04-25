@@ -1416,10 +1416,12 @@ int rm_child(MINODE *pip, char *child)
         while(cp < (buf + BLOCK_SIZE) && (found_child < 0))
         {
 
-            char *temp = strdup(dp->name);
-            temp[dp->name_len] = 0;
+            char *temp = malloc(sizeof(char *) * dp->name_len + 1);
+            strncpy(temp, dp->name, dp->name_len );
+            temp[dp->name_len + 1] = 0;
 
             printf("%s\n", temp);
+            printf("********************\n");
             if(strcmp(child, temp) == 0)
             {
                 printf("found child in i_block[%d]\n", i);
@@ -1434,7 +1436,13 @@ int rm_child(MINODE *pip, char *child)
                     tmpIp->i_block[i] = 0;
                     tmpIp->i_blocks--;
                     found_child = i;
+
+                    printf("found child in i_block #%d\n", found_child);
+                    put_block(pip->dev, pip->INODE.i_block[found_child], buf);
                     getchar();
+
+                    free(temp);
+                    return 0;
                 }
                 else
                 {
@@ -1456,8 +1464,13 @@ int rm_child(MINODE *pip, char *child)
                     {
                         printf("%s is last entry in block\n", child);
                         prevdp->rec_len += dp->rec_len;
+
                         found_child = i;
+                        printf("found child in i_block #%d\n", found_child);
+                        put_block(pip->dev, pip->INODE.i_block[found_child], buf);
                         getchar();
+
+                        return 0;
                     }
                     else
                     {
@@ -1471,10 +1484,11 @@ int rm_child(MINODE *pip, char *child)
                         prevdp = (DIR *)cp;
                         printf("previous dir name: temp = %s\n", prevdp->name);
 
-                        found_child = i;
+                        printf("found child in i_block #%d\n", found_child);
+                        put_block(pip->dev, pip->INODE.i_block[found_child], buf);
+
                         getchar();
-
-
+                        return 0;
                     }
 
                 }
@@ -1485,12 +1499,6 @@ int rm_child(MINODE *pip, char *child)
             dp = (DIR *)cp;
         }
 
-        if(found_child >= 0)
-        {
-            printf("found child in i_block #%d\n", found_child);
-            put_block(pip->dev, pip->INODE.i_block[found_child], buf);
-            return 0;
-        }
     }
 
     return 0;

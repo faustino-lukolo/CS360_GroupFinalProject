@@ -600,6 +600,7 @@ int set_bit(char *buf, int i)
 
     return 0;
 }
+// Sets bit to 0 to say inode/block is free
 int unset_bit(char *buf, int i)
 {
 	int byte, offset;
@@ -1122,7 +1123,74 @@ int my_mkdir(MINODE *pip, char *bname)
 
 
 }
-
+/*Mo: This function adds a name (folder name..) entry to the parent 
+ * minode pointer's next availible data block. If the current data block 
+ *  with the given name is full then we create a disk block at the next 
+ * index of i_block.
+ * Note: does only direct blocks
+ */
+void PutNamePDir(MINODE parentMinoPtr, int ino, char *name)
+{
+	int i = 0, freeSpace, tempBlockNum, reqLen, idx;  
+	char *prev_cp, *cp;
+	char buf[BLOCK_SIZE];
+	Dir *newDirPtr, *locDirPtr;
+	Inode *locInoPtr;
+	
+	locInoPtr = &parentMinoPtr->INODE;
+	
+	while(i < 12 && locInoPtr->i_block[i] != 0)
+	{
+		// For the ideal length
+		reqLen = 4 * ((8+ strlen(name) + 3) / 4)
+		// get the data blocks of the parent
+		get_block(dev, locInoPtr->i_block[i], buf);
+		cp = (char *)buf;
+		
+		// remaining is the last entrys rec_len minus its ideal len
+		while(cp < (buf + BLOCK_SIZE)
+		{
+			// we keep going until we have the last entry with the required len
+			locDirPtr = (DIR *)cp;
+			prev_cp = cp;
+			cp += locDirPtr->rec_len; 
+		}
+		
+		// We calc the remaining free space needed
+		freeSpace = locDirPtr->rec_len - (4 * ((8 + locDirPtr->name_len + 3) / 4);
+		
+		// avalible data block has enough free space
+		if(reqLen <= freeSpace)
+		{
+			// The new entry is entered as the last entry.
+			
+			// rec_len is set to the ideal length
+			locDirPtr->rec_len = (4 * ((8 + locDirPtr->name_len + 3) / 4);
+			// Set prev cp pointer to the new entry
+			prev_cp += locDirPtr->rec_len;
+			
+			// The last entry of the datablock is modified
+			locDirPtr = (DIR *)prev_cp;
+			locDirPtr->INODE = ino;
+			locDirPtr->rec_len = freeSpace;
+			locDirPtr->name_len = strlen(name);
+			strcpy(locDirPtr->name, name);
+			
+			// Write the datablock to disk
+			put_block(dev, locInoPtr->i_block[i], buf);
+			
+		}
+		// Need to create a new data block
+		else
+		{
+// TODO			idx = 
+		}
+		
+		
+		i++;
+	}
+		
+}
 //Mo: Prints the cwd using the running proc pointer
 int pwd(char *pathstr)
 {

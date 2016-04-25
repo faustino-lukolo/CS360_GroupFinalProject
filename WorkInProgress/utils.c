@@ -1123,22 +1123,22 @@ int my_mkdir(MINODE *pip, char *bname)
 
 
 }
-/*Mo: This function adds a name (folder name..) entry to the parent 
- * minode pointer's next availible data block. If the current data block 
- *  with the given name is full then we create a disk block at the next 
+/*Mo: This function adds a name (folder name..) entry to the parent
+ * minode pointer's next availible data block. If the current data block
+ *  with the given name is full then we create a disk block at the next
  * index of i_block.
  * Note: does only direct blocks
  */
-void PutNamePDir(MINODE parentMinoPtr, int ino, char *name)
+/*void PutNamePDir(MINODE parentMinoPtr, int ino, char *name)
 {
-	int i = 0, freeSpace, tempBlockNum, reqLen, idx;  
+	int i = 0, freeSpace, tempBlockNum, reqLen, idx;
 	char *prev_cp, *cp;
 	char buf[BLOCK_SIZE];
-	Dir *newDirPtr, *locDirPtr;
-	Inode *locInoPtr;
-	
+	DIR *newDirPtr, *locDirPtr;
+	INODE *locInoPtr;
+
 	locInoPtr = &parentMinoPtr->INODE;
-	
+
 	while(i < 12 && locInoPtr->i_block[i] != 0)
 	{
 		// For the ideal length
@@ -1146,51 +1146,51 @@ void PutNamePDir(MINODE parentMinoPtr, int ino, char *name)
 		// get the data blocks of the parent
 		get_block(dev, locInoPtr->i_block[i], buf);
 		cp = (char *)buf;
-		
+
 		// remaining is the last entrys rec_len minus its ideal len
 		while(cp < (buf + BLOCK_SIZE)
 		{
 			// we keep going until we have the last entry with the required len
 			locDirPtr = (DIR *)cp;
 			prev_cp = cp;
-			cp += locDirPtr->rec_len; 
+			cp += locDirPtr->rec_len;
 		}
-		
+
 		// We calc the remaining free space needed
 		freeSpace = locDirPtr->rec_len - (4 * ((8 + locDirPtr->name_len + 3) / 4);
-		
+
 		// avalible data block has enough free space
 		if(reqLen <= freeSpace)
 		{
 			// The new entry is entered as the last entry.
-			
+
 			// rec_len is set to the ideal length
 			locDirPtr->rec_len = (4 * ((8 + locDirPtr->name_len + 3) / 4);
 			// Set prev cp pointer to the new entry
 			prev_cp += locDirPtr->rec_len;
-			
+
 			// The last entry of the datablock is modified
 			locDirPtr = (DIR *)prev_cp;
 			locDirPtr->INODE = ino;
 			locDirPtr->rec_len = freeSpace;
 			locDirPtr->name_len = strlen(name);
 			strcpy(locDirPtr->name, name);
-			
+
 			// Write the datablock to disk
 			put_block(dev, locInoPtr->i_block[i], buf);
-			
+
 		}
 		// Need to create a new data block
 		else
 		{
-// TODO			idx = 
+// TODO			idx =
 		}
-		
-		
+
+
 		i++;
 	}
-		
-}
+
+}*/
 //Mo: Prints the cwd using the running proc pointer
 int pwd(char *pathstr)
 {
@@ -1387,6 +1387,7 @@ int rm_child(MINODE *pip, char *child)
     DIR *dp, *dp2, *prevdp;          // pdp: previous dir entry *, cdp: current dir entry*
 
     char buf[BLOCK_SIZE], buf2[BLOCK_SIZE];  // current buffer
+    char dirnametmp[256];
     bzero(buf2, BLOCK_SIZE);
 
     INODE *tmpIp = &pip->INODE;
@@ -1452,14 +1453,18 @@ int rm_child(MINODE *pip, char *child)
                     printf("finding last entry");
                     while((dp2->rec_len + cp2) < buf + BLOCK_SIZE)
                     {
+
+
                         prevdp = dp2;
-                        printf("%s\n", prevdp->name);
+                        strncpy(dirnametmp, prevdp->name, dp->name_len );
+                        dirnametmp[dp->name_len + 1] = 0;
+                        printf("%s\n", dirnametmp);
+
                         cp2 += dp2->rec_len;
                         dp2 = (DIR *)cp2;
                         getchar();
                     }
 
-                    printf("prevdp->name = %s\n", prevdp->name);
                     if(dp == dp2)
                     {
                         printf("%s is last entry in block\n", child);
@@ -1474,6 +1479,9 @@ int rm_child(MINODE *pip, char *child)
                     }
                     else
                     {
+
+                        found_child = i;
+
                         printf("%s is not the last entry in block\n\n", child);
                         int size = (buf + BLOCK_SIZE) - (cp + dp->rec_len);
                         printf("Size of previous record entry = %d\n", size);

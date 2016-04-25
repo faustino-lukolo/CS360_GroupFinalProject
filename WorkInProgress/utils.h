@@ -56,13 +56,19 @@ int make_dir(char *path);
 int rm_dir(char *path);
 int pwd(char *pathstr);
 
+// BLOCK Operations
+int get_super_block(int dev, char *buf);
+
+
 // Helpers
 int my_mkdir(MINODE *pip, char *bname);
 // Bit functions
 int tst_bit(char *buf, int i);
 int set_bit(char *buf, int i);
 int unset_bit(char *buf, int i);
+int incrementFreeInodes(int dev);
 
+int touch_update(char *path);
 
 
 // ext2 utils functions

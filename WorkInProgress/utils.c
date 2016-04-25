@@ -260,9 +260,44 @@ int iput(int mdev, MINODE *mip)
 {
     char buf[BLOCK_SIZE];
     int blk, offset;
-    INODE *tmpip;
+    INODE *ip;
 
     printf("iput(): dev = %d\n", mdev);
+
+
+    printf("iput() decrementing inode refCount = %d\n", mip->refCount);
+
+    // Step 1: decrease the inode refCount by 1
+    mip->refCount--;
+    if(mip->refCount > 0)
+    {
+        printf("iput() refCount = %d\n", mip->refCount);
+        return 0;
+    }
+
+    // Step 2: check if the Inode has not been modified
+    if(mip->dirty == 0)
+    {
+        printf("iput() inode has not been modified : dirty = %d\n", mip->dirty);
+        return 0;           // No need to put Inode back into device since it has not been modified
+    }
+
+    // Step 3: Write Inode back into disk using MailMan's Algorith to find blk and offset
+    blk     = (mip->ino - 1) / InodeBeginBlock;
+    offset  = (mip->ino -1) % 8;
+    printf("Preparing to write inode to disk @ blk = %d offset = %d\n", blk, offset);
+
+    // Step 4: read the block into the buffer using the blk number
+    get_block(mip->dev, blk, buf);
+    ip = (INODE *)buf;
+
+    // Step 5: Copy the In_Memory INODE struct into ip (INODE inside buffer array)
+    memcpy(ip, &(mip->INODE), sizeof(INODE));
+
+    // Step 6: Write the block back into disk
+    put_block(mip->dev, blk, buf);
+
+    return 0;
 
 }
 
@@ -580,45 +615,43 @@ int unset_bit(char *buf, int i)
 // super and group discriptor blocks by 1
 void dec_free_inodes(int dev)
 {
-	SUPER *sp;
-	GD *gp;
+
 	char buf[BLOCK_SIZE];
 
+
+	printf("Decrimented free inodes count from SUPER and GD by 1\n");
 	// Decriment from Super structure.
-	get_block(dev, SUPERBLOCK, buf);
+	get_super_block(dev, buf);
 	sp = (SUPER *)buf;
 	sp->s_free_inodes_count--;
 	put_block(dev, SUPERBLOCK, buf);
 
 	// Decriment from Group Discriptor structure.
-	get_block(dev, GDBLOCK, buf);
+	get_gd_block(dev, buf);
 	gp = (GD *)buf;
 	gp->bg_free_inodes_count--;
 	put_block(dev, GDBLOCK, buf);
-
-	printf("Decrimented free inodes count from SUPER and GD by 1\n");
 }
 // Mo: This function incriments the free_inodes_count members of
 // super and group discriptor blocks by 1
 void inc_free_inodes(int dev)
 {
-	SUPER *sp;
-	GD *gp;
 	char buf[BLOCK_SIZE];
 
-	// Incriment from Super structure.
-	get_block(dev, SUPERBLOCK, buf);
+
+	printf("Incrimented free inodes count from SUPER and GD by 1\n");
+
+    get_super_block(dev, buf);
 	sp = (SUPER *)buf;
 	sp->s_free_inodes_count++;
 	put_block(dev, SUPERBLOCK, buf);
 
 	// Incriment from Group Discriptor structure.
-	get_block(dev, GDBLOCK, buf);
+	get_gd_block(dev, buf);
 	gp = (GD *)buf;
+
 	gp->bg_free_inodes_count++;
 	put_block(dev, GDBLOCK, buf);
-
-	printf("Incrimented free inodes count from SUPER and GD by 1\n");
 }
 // Mo: This function decriments the free_blocks_count members of
 // super and group discriptor blocks by 1
@@ -646,18 +679,16 @@ void dec_free_blocks(int dev)
 // super and group discriptor blocks by 1
 void inc_free_blocks(int dev)
 {
-	SUPER *sp;
-	GD *gp;
 	char buf[BLOCK_SIZE];
 
 	// Incriment from Super structure.
-	get_block(dev, SUPERBLOCK, buf);
+	get_super_block(dev, buf);
 	sp = (SUPER *)buf;
 	sp->s_free_blocks_count++;
 	put_block(dev, SUPERBLOCK, buf);
 
 	// Incriment from Group Discriptor structure.
-	get_block(dev, GDBLOCK, buf);
+	get_gd_block(dev, buf);
 	gp = (GD *)buf;
 	gp->bg_free_blocks_count++;
 	put_block(dev, GDBLOCK, buf);
@@ -680,7 +711,6 @@ int ialloc(int pdev)
     int i = 0;
     while(i < ninodes)
     {
-
         // Find a free inode bitmap
         if(tst_bit(buf, i) == 0)
         {
@@ -688,10 +718,12 @@ int ialloc(int pdev)
 
             // Step 2: set the bit
             set_bit(buf, i);
-            // Step 3: decriment # of free inodes since we're alloc
-			dec_free_inodes(pdev);
-			// Step 4: Write inode changes back into fs structure
+           // Step 3: Write inode changes back into fs structure
 			put_block(pdev, imap, buf);
+
+			 // Step 4: decriment # of free inodes since we're alloc
+			dec_free_inodes(pdev);
+
 			// Step 5:Return inode number location
 			return i+1;
         }
@@ -725,8 +757,13 @@ int balloc(int pdev)
             set_bit(buf, i);
             // Step 3: decriment # of free blocks since we're alloc
 		    dec_free_blocks(pdev);
+
+		    // Write 0's into buffer
+		    bzero(buf, BLOCK_SIZE);
+
 			// Step 4: Write block changes back into fs structure
 			put_block(pdev, bmap, buf);
+
 			// Step 5:Return block number location
 			return i+1;
         }
@@ -746,10 +783,12 @@ int idealloc(int dev, int ino)
 	get_block(dev, imap, buf);
 	// set bit in ino location in buffer to 0 since dealloc
 	unset_bit(buf, ino);
-	// decriment # of free inodes cause dealloc
-	dec_free_inodes(dev);
+
 	// Write inode changes back into fs structure
 	put_block(dev, imap, buf);
+
+    // decriment # of free inodes cause dealloc
+	inc_free_inodes(dev);
 	return 0;
 }
 // deallocates block given a block number, bno
@@ -761,12 +800,23 @@ int bdealloc(int dev, int bno)
 	get_block(dev, bmap, buf);
 	// set bit in bno location in buffer to 0 since dealloc
 	unset_bit(buf, bno);
-	// decriment # of free blocks cause dealloc
-	dec_free_blocks(dev);
 	// Write block changes back into fs structure
 	put_block(dev, bmap, buf);
+
+	// decriment # of free blocks cause dealloc
+	inc_free_blocks(dev);
 	return 0;
 }
+
+int get_super_block(int dev, char *buf)
+{
+    get_block(dev, SUPERBLOCK, buf);
+}
+int get_gd_block(int dev, char *buf)
+{
+    get_block(dev, GDBLOCK, buf);
+}
+
 
 /***************** Commands Functions **************/
 
@@ -1129,6 +1179,7 @@ int rm_dir(char *path)
 
     MINODE *pip;            // parent Inode pointer
     MINODE *mip;            // In Memory Inode pointer
+    INODE *parent_inode;
 
      // check if path of the directory to be removed is given
     if(path[0] == NULL)
@@ -1211,149 +1262,170 @@ int rm_dir(char *path)
 
     // get the parent inode pointer
     pip = iget(mip->dev, ino);
-
-
+    iput(mip->dev, mip);
 
     // Remove the child (basename): the directory to be removed
     rm_child(pip, child);
-    mip->INODE.i_links_count--;     // decrease link count
-    mip->INODE.i_atime = time(0L);
-    mip->INODE.i_mtime = time(0L);
+
+    // Decrease the parent Inode linkcount by 1
+    pip->INODE.i_links_count--;
+
+    // Update parent Inode information and set dirty =1 (modified)
+    touch_update (parent);
+    pip->dirty = 1;
+
+    // Put the parent Inode back into disk
+    iput(pip->dev, pip);
+
+    return 0;
+
+}
+int touch_update(char *path)
+{
+    char buf[BLOCK_SIZE];
+    int ino;
+    MINODE *mip;
+
+    // Step 1: Get ino of path
+    ino = getino(dev, path);
+    printf("touch_update dev = %d ino = %d\n", dev, ino);
+    getchar();
+
+    // Case 0: Ino < 0 we want to create a file
+    if(ino <= 0)
+    {
+        // Create_file() function goes here
+        return 0;
+    }
+
+    // Step 2: update
+    // Case 1: Ino > 0 we want to update file or directory
+    // Get the IN_Memory Inode of path
+    mip = iget(dev, ino);
+    mip->INODE.i_atime = mip->INODE.i_mtime = mip->INODE.i_ctime = time(0L);
+
+    // Step 3: Set mip->dirty
     mip->dirty = 1;
 
-    // put the In_MEMORY INODE back inside the device
+    // Step 4: Put the In_Memory Inode back into disk
     iput(mip->dev, mip);
-}
 
+    return 0;
+}
 int rm_child(MINODE *pip, char *child)
 {
     printf("rm_child() directory: %s\n", child);
     char *cp, *cp2;        // pcp: previous char pointer, ccp : current char pointer
-    DIR *dp, *prevdp, *currdp;          // pdp: previous dir entry *, cdp: current dir entry*
-    char buf2[BLOCK_SIZE];  // previous buffer
-    char buf[BLOCK_SIZE];  // current buffer
+    DIR *dp, *dp2, *prevdp;          // pdp: previous dir entry *, cdp: current dir entry*
 
-    int i = 0;
+    char buf[BLOCK_SIZE], buf2[BLOCK_SIZE];  // current buffer
+    bzero(buf2, BLOCK_SIZE);
 
-    // Search the datablocks of the parent for any other directories and or files
-    while(i < 12)
+    INODE *tmpIp = &pip->INODE;
+    int i = 0, found_child = -1;
+
+    // Search the datablocks
+    for(i = 0; i < 12; i++)
     {
-        // if the parent inode block is empty then return
-        if(pip->INODE.i_block[i] == 0)
+        if(tmpIp->i_block[i] == 0)
         {
-            printf("NO Other Entries\n");
+            printf("rmchild(): i_block[%d] is empty\n", i);
             return 0;
         }
 
-        printf("%s is not the only entry inside parent\n", child);
-        printf("locating child entry inside of parent\n");
+        // Read in the i_block[i] into the buffer
+        get_block(pip->dev, tmpIp->i_block[i], buf);
+        dp      = (DIR *)buf;
+        dp2  = (DIR *)buf;
+        prevdp  = (DIR *)buf;
 
-        // Read in the block into cbuf: current buffer
-        get_block(pip->dev, pip->INODE.i_block[i], buf);
-        dp = (DIR*)buf;
+        cp      = buf;
+        cp2     = buf;
 
+        // Step through the entries inside directory
 
-        // Let current and previous dir * point to the buffer
-        currdp =  (DIR*)buf;
-        prevdp = (DIR*)buf;
-
-
-        // let current and previous char * direntry point to cbuf
-        cp = buf;
-        cp2 = buf;
-
-        /* Similar to ls() list all the parent dir entries and match the child entryname*/
-        // Travers through the directory entries of parent
-        while(cp < buf + BLOCK_SIZE)
+        printf("Stepping through dir entries iblock = %d\n", i);
+        while(cp < (buf + BLOCK_SIZE) && (found_child < 0))
         {
-            char *temp = NULL;
-            temp = strdup(dp->name);
-            printf("inside parent directory: ");
-            printf("entry name: %s\n", temp);
 
-            temp[strlen(temp) -1] = 0;                  // Add null terminator to the end of the name for strcmp
-            // Compare each entry against child name
-            if(strcmp(temp, child) == 0)
+            char *temp = strdup(dp->name);
+            temp[dp->name_len] = 0;
+
+            printf("%s\n", temp);
+            if(strcmp(child, temp) == 0)
             {
-                printf("Found: %s entry inside parent dir\n", temp);
-
-                // Check if child is only entry in the block
-                // Interesting to note because . and .. entries are always in the block unless its a link maybe
-                int i = 0;
+                printf("found child in i_block[%d]\n", i);
+                getchar();
+                // IS Child the only entry in the i_block
                 if(cp == buf && dp->rec_len == BLOCK_SIZE)
                 {
-                    printf("%s is the only entry in the block\n", temp);
+                    printf("%s is the only entry in i_block[%d\n", child, i);
 
-                    // deallocate the inode block [0] of parent inode
-                    bdealloc(pip->dev, pip->INODE.i_block[i]);
-
-                    // decrement i_blocks of parent inode
-                    pip->INODE.i_blocks--;
-
-                    // put the IN_MEMORY Inode back inside the device
-                    put_block(pip->dev, pip->INODE.i_block[i], buf);
-                    return 0;
+                    // deallocate the i_block, seat i_block[i] = 0 and dcrease the i_blocks count by 1
+                    bdealloc(pip->dev, tmpIp->i_block[i]);
+                    tmpIp->i_block[i] = 0;
+                    tmpIp->i_blocks--;
+                    found_child = i;
+                    getchar();
                 }
-
-                // there are other entries inside the parent.
-                // remove the child entry and shift entries to the left
-                printf("Other entries detected. deleting %s and shifting entries to the left....\n", temp);
-                while((currdp->rec_len + cp2) < buf + BLOCK_SIZE)
+                else
                 {
-                    prevdp =  currdp;             // Let previous = current
-                    printf("previous dp->name : %s\n", prevdp->name);
+                    printf("%s is not the only entry in the block\n", child);
 
-                    cp2 += prevdp->rec_len;     // the entire recored
-                    currdp = (DIR *)cp2;       // current directory points to this record
+                    // Travers through the directory entries
+                    printf("finding last entry");
+                    while((dp2->rec_len + cp2) < buf + BLOCK_SIZE)
+                    {
+                        prevdp = dp2;
+                        printf("%s\n", prevdp->name);
+                        cp2 += dp2->rec_len;
+                        dp2 = (DIR *)cp2;
+                        getchar();
+                    }
+
+                    printf("prevdp->name = %s\n", prevdp->name);
+                    if(dp == dp2)
+                    {
+                        printf("%s is last entry in block\n", child);
+                        prevdp->rec_len += dp->rec_len;
+                        found_child = i;
+                        getchar();
+                    }
+                    else
+                    {
+                        printf("%s is not the last entry in block\n\n", child);
+                        int size = (buf + BLOCK_SIZE) - (cp + dp->rec_len);
+                        printf("Size of previous record entry = %d\n", size);
+                        dp2->rec_len += dp->rec_len;
+
+                        printf("dp2->rec_lec = %d\n", dp2->rec_len);
+                        memmove(cp, (cp + dp->rec_len), size);
+                        prevdp = (DIR *)cp;
+                        printf("previous dir name: temp = %s\n", prevdp->name);
+
+                        found_child = i;
+                        getchar();
+
+
+                    }
+
                 }
-
-                printf("Checking if %s is last entry\n", child);
-
-                // Check if child is the last entry
-                if(currdp == dp)
-                {
-                    printf("Child is last entry\n");
-                    prevdp += dp->rec_len;
-
-                    // put the IN_MEMORY Inode back inside the disk
-                    put_block(pip->dev, pip->INODE.i_block[i], buf);
-                    return 0;
-
-                }
-
-                // Child is not the last entry
-                int size = ((buf + BLOCK_SIZE) - (cp + dp->rec_len));
-                printf("child not the last entry: size  = %d till end of entries\n", size);
-                currdp->rec_len += dp->rec_len;
-                printf("currdp->rec_len = %d\n", currdp->rec_len);
-
-                // Copy the contents of the cp + dp->rec_len into cp
-                // void *memmove(void *dest, const void *src, size_t n);
-                // We use memove to allow for overlap
-                memmove(cp, (cp + dp->rec_len ), size);
-                prevdp = (DIR *)cp;
-
-                temp = NULL;
-                temp = strdup(prevdp->name);
-                printf("the new dp->name entry: %s\n", temp);
-
-                // put the IN_MEMORY Inode back inside the disk
-                put_block(pip->dev, pip->INODE.i_block[i], buf);
-                return 0;
-
             }
 
+            // Go to the next entry by adding the record length
             cp += dp->rec_len;
-            dp = (DIR*)cp;
+            dp = (DIR *)cp;
         }
 
-        i++;
+        if(found_child >= 0)
+        {
+            printf("found child in i_block #%d\n", found_child);
+            put_block(pip->dev, pip->INODE.i_block[found_child], buf);
+            return 0;
+        }
     }
 
-    printf("child dir %s not found\n", child);
-
     return 0;
-
 }
 
 int dir_isempty(MINODE *mip)

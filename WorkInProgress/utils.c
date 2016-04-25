@@ -1812,17 +1812,113 @@ int dir_isempty(MINODE *mip)
 
 
 
+int rm_file(char *path)
+{
+    char buf[BLOCK_SIZE], dname[256], *cp, *cp2;
+    MINODE *mip;
+    DIR *dp;
+
+    int parentIno, childIno;        // parentIno is the ino of the parent, childIno is the ino of the target we want to delete
+
+
+    // Step 1:
+    if(path[0] == NULL)
+    {
+        printf("Usage: rm [path to file]\n");
+        return 0;
+
+    }
 
 
 
 
+    return 0;
 
 
 
 
+}
+
+
+int my_chmod(char *path)
+{
+    char permMode[64], mPath[256];
+    uint32_t ino, mode;
+    MINODE *mip;
+    char *temp;
+
+    // Write 0's inside the permissions array
+    bzero(permMode, 64);
+    temp = strchr(path, " ");
+
+    // Step 1: Permissions are stored in the global variable params
+    if(params[0] == NULL)
+    {
+        printf("Usage: chmod [path] [permissions]\n");
+        return 0;
+    }
+
+    printf("Change access permissions: path = %s mode = %s \n", path, params);
+
+    // Step 2: change permissions to ulong
+    mode = strtoul(params, NULL, 8);
+    printf("mode = %u\n", mode);
+
+    // Step 3: Get ino of path
+    ino = getino(dev, path);
+    if(ino <= 0)
+    {
+        printf("Invalid path error\n");
+        return -1;
+    }
+
+    // Step 4: get the IN_Memory inode
+    mip = iget(dev, ino);
+    printf("chmod: mip->dev = %d mip->ino = %d\n", mip->dev, mip->ino);
+
+
+    int i = i = ~0x1FF;
+    printf("i = %d\n", i);
+
+    mip->INODE.i_mode &= i;
+    printf("mip->INODE.i_mode &= i: %d\n", mip->INODE.i_mode);
+
+    mip->INODE.i_mode |= mode;
+    printf("mip->INODE.i_mode |= i: %d\n", mip->INODE.i_mode);
+
+    // Step 5: Set dirty bit to 1 to indicate its been modified
+    mip->dirty = 1;
+
+    // Step 6: write changes to disk
+    iput(mip->dev, mip);
+
+    getchar();
+
+    return 1;
+}
+
+int split_path(char *original, char *path1, char *perm)
+{
+    char *token;
+
+    token = strtok(original, " ");
+    strcpy(path1, token);
+
+    // Get the permission string from path
+    token = strtok(0, " ");
+    if(token == NULL)
+    {
+        printf("Error missing permission: chmod [path] [permission]\n");
+        return -1;
+    }
+
+    strtok(perm, token);
+    return 1;
 
 
 
+
+}
 
 
 

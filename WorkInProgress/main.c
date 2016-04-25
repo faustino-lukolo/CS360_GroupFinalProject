@@ -26,11 +26,11 @@ int main(int argc, char *argv[], char *env[] ) {
         printf("cmd = %s pathname = %s params = %s\n", cmd, pathname, params);
 
 
-        if (params[0]) {
+        /*if (params[0]) {
             printf("params exists...\n");
             strcat(pathname, " ");
             strcat(pathname, params);
-        }
+        }*/
 
         if(!pathname[0])
         {
@@ -42,7 +42,7 @@ int main(int argc, char *argv[], char *env[] ) {
         printf("full pathname = %s\n", pathname);
 
         int i = 0;
-        while(i < 6)
+        while(i < 9)
         {
             if(strcmp(sh_cmds[i], cmd) == 0)
             {

@@ -64,8 +64,8 @@ int get_super_block(int dev, char *buf);
 
 
 // Helpers
-int my_mkdir(MINODE *pip, char *bname);
-void PutNamePDir(MINODE *parentMinoPtr, int ino, char *name);
+int my_mkdir(MINODE *pip, char *name);
+int enter_name(MINODE *parentMinoPtr, int ino, char *name);
 int GetNotFullIblockIndex(MINODE *mip, char *name);
 int my_creat(MINODE *pip, char *name);
 int split_path(char *original, char *path1, char *perm);
@@ -83,7 +83,7 @@ int findDatablocks(INODE *ip, int pstat);
 int printDirs(int blk, int pstat);
 int printstat(DIR *dp);
 int dir_isempty(MINODE *mip);
-
+DIR *find_last_entry(char *buf);
 
 /*Function pointers for commands */
 static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file, touch_update, rm_dir, rm_file, pwd, my_chmod};

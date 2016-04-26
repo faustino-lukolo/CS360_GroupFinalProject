@@ -1,0 +1,17 @@
+# depslib dependency file v1.0
+1461696634 source:/home/osboxes/Documents/Projects/360ext2fs/init.c
+	"global.h"
+
+1461694592 source:/home/osboxes/Documents/Projects/360ext2fs/main.c
+	<stdio.h>
+	<stdlib.h>
+
+1461696673 /home/osboxes/Documents/Projects/360ext2fs/global.h
+	<stdio.h>
+	<stdlib.h>
+	<fcntl.h>
+	<ext2fs/ext2_fs.h>
+	<libgen.h>
+	<string.h>
+	<sys/stat.h>
+

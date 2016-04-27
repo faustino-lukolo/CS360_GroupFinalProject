@@ -2,21 +2,37 @@
 #define _GLOBAL_H
 
 /*	type.h for CS360 Project             */
-
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <fcntl.h>
 #include <ext2fs/ext2_fs.h>
 #include <libgen.h>
 #include <string.h>
 #include <sys/stat.h>
 
+#include <fcntl.h>
+#include <ext2fs/ext2_fs.h>
+#include <libgen.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <time.h>
+
+#define bzero(b,len) (memset((b), '\0', (len)), (void) 0)   // Shortens memset() function for zeroing out arrays
+
+
+
+
 // define shorter TYPES, save typing efforts
+typedef unsigned char  u8;            // unsigned char
+typedef unsigned short u16;           // unsigned short
+typedef unsigned int   u32;           // unsigned int
+
+
 typedef struct ext2_group_desc  GD;
 typedef struct ext2_super_block SUPER;
 typedef struct ext2_inode       INODE;
 typedef struct ext2_dir_entry_2 DIR;    // need this for new version of e2fs
+
 
 GD    *gp;
 SUPER *sp;
@@ -123,9 +139,11 @@ extern int inodeBegin;
 extern int bmap;
 extern int imap;
 extern int ninodes;
+extern int nblocks;
 
 
 extern char pathname[];     // global pathname
+
 
 extern MINODE* root;
 extern PROC* running; // Points at the PROC structure of the current running process
@@ -139,7 +157,5 @@ extern OFT       OpenFileTable[];
 
 
 
-// Function declarations
-void MountRoot(char *device);
-void init_fs();
+
 #endif

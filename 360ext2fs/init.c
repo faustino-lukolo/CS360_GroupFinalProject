@@ -1,5 +1,4 @@
-#include "global.h"
-
+#include "init.h"
 
 
 MINODE      MemoryInodeTable[NMINODES];
@@ -18,7 +17,10 @@ int inodeBegin;
 int bmap;
 int imap;
 int ninodes;
+int nblocks;
 char pathname[128];
+
+
 
 
 void init_fs()
@@ -92,7 +94,7 @@ void init_fs()
 
 }
 
-void MountRoot(char *device)
+int MountRoot(char *device)
 {
     char buf[BLOCK_SIZE];           // Block read buffer.
     MOUNT *mp;
@@ -106,46 +108,63 @@ void MountRoot(char *device)
         perror("open device");
         exit(EXIT_FAILURE);
     }
-
     printf("device with name: %s opened successfully dev = %d. \n\n", device, dev);
-    getSuper(dev, buf);
+
+    // Step 2: Read the superblock into buffer
+    get_super_block(dev, buf);
     sp = (SUPER *)buf;
 
+    // check if device is an ext2 file system
     if(check_ext2(sp) < 0)
     {
         printf("check_ext2: %s not and ext2 filesystem", device);
         exit(EXIT_FAILURE);
     }
 
-    /* The device is an ext2 file system save number of inodes from superblock to global variable */
+    /* Store globals: number of inodes from superblock to global variable */
     ninodes = sp->s_inodes_count;
+    nblocks = sp->s_blocks_count;
 
+    bzero(buf, BLOCK_SIZE);
+    // Step 3: Read the group descriptor block save  inodeBegin bmap imap to global variable;
+    get_gd_block(dev, buf);
+    gp = (GD *)buf;
+
+    // Store the globals:
+    inodeBegin  = gp->bg_inode_table;
+    bmap        = gp->bg_block_bitmap;
+    imap        = gp->bg_inode_bitmap;;
+
+    // Step 4: Get root Memory INODE from MemoryInodeTable[]
+    root = iget(dev, ROOT_INODE);               // In global.h #define ROOT_INODE    2
+    printf("root MemoryMinodeTable: dev = %d ino = %d refCount = %d\n", root->dev, root->ino, root->refCount);
+
+    // Step 5: Use iget to get the MemoryMinode for P0->cwd parent process
+    PROC *pp = &ProcessTable[0];
+    pp->cwd     = iget(dev, ROOT_INODE);
+
+    // Step 6: Use iget to get the MemoryMinode for P1->cwd child process
+    PROC *cpp   = &ProcessTable[1];
+    cpp->cwd    = iget(dev, ROOT_INODE);;
+
+    printf("PO MemoryInode: dev = %d ino = %d refCount = %d\n", pp->cwd->dev, pp->cwd->ino, pp->cwd->refCount);
+    printf("P1 MemoryInode: dev = %d ino = %d refCount = %d\n", cpp->cwd->dev, cpp->cwd->ino, cpp->cwd->refCount);
+
+
+    mp = &MountTable[0];
+
+    // Step 7: Assign root Minode to MountTable[0]->mounter_inode and set its number of inodes number of blocks and dev from globals
+    mp->mounted_inode = root;
+    mp->nblocks = nblocks;
+    mp->ninodes = ninodes;
+    mp->dev = dev;
+
+    // Step 8: Finally Copy the device name to the MountTable[0]->name
+    // be sure to write 256 bytes to fill name with 0's
+    strncpy(mp->name, device, 256);
+
+    printf("MountTable[0]: name = %s mounted successfully\n", MountTable[0].name);
+    return dev;
 
 }
 
-
-
-void get_block(int mdev, int blk, char *buf)
-{
-    lseek(mdev, blk * BLOCK_SIZE, SEEK_SET);
-    read(mdev, buf, BLOCK_SIZE);
-}
-
-void get_iTable(int mdev)
-{
-    char buf[BLOCK_SIZE];
-    getGDBLOCK(int mdev)
-
-}
-void getSuper(int mdev, char *buf)
-{
-    get_block(mdev, SUPERBLOCK, buf);
-}
-
-int check_ext2(SUPER *sp)
-{
-    if(sp->s_magic != SUPER_MAGIC)
-        return -1;
-
-    return 1;
-}

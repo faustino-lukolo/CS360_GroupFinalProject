@@ -31,10 +31,23 @@
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
+		<Unit filename="ext2_utils.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="ext2_utils.h" />
+		<Unit filename="functions.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="functions.h" />
 		<Unit filename="global.h" />
 		<Unit filename="init.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="init.h" />
+		<Unit filename="input.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="input.h" />
 		<Unit filename="main.c">
 			<Option compilerVar="CC" />
 		</Unit>

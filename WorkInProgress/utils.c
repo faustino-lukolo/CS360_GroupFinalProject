@@ -176,7 +176,7 @@ int mount_root(char *devName)
     /***** call iget(), which inc the Minode's refCount ****/
     root = iget(dev, 2);        // Get root's MINODE inode #2
     mp->mounted_inode = root;   // set the mounttab[0] mounted inode to root
-
+    printf("root->refCount = %d\n", root->refCount);
     // print information about the mounted device
     printf("mount: %s mounted on / \n", devName);
     printf("nblocks = %d, bfree = %d ninodes = %d ifree = %d\n", nblocks, bfree, ninodes, ifree);

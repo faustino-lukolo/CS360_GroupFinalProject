@@ -887,7 +887,7 @@ int ls(char *path)
     {
         ls_file(mip, child);
     }
-
+	printf(" in Ls() befor iput()      \n");
     iput(mip->dev, mip);
     getchar();
 
@@ -1455,16 +1455,131 @@ int SymLink(char *oPath)
 2 |         |             |0123456.............
   | ------  |             --------------------------------
   ===========        logical view of file: a sequence of bytes */
-// This function opens a file given a path name and the mode (which is params)
-// to open it with.
+
+
+// This function opens a file given a path name and the mode (which is params str) 
+// in the form of 0 or 1 or 2 or 3 for RD|WR|RW|APPEND to open it with. 
 int open_file(char *path)
 {
-	//1. ask for a pathname and mode to open:
-    // You may use mode = 0|1|2|3 for R|W|RW|APPEND
-
-
-
-
+	int i, pdev, InoNum, mode;
+	MINODE *tempMinoPtr;
+	OFT *oftp; // Open File Table pointer
+	
+	// set mode from string
+	mode = atoi(params);
+	
+	//1. ask for a pathname and mode to open: Done in main
+    // You may use mode = 0|1|2|3 for R|W|RW|APPEND. 
+	// check if the pathname is absolute or relative to current working directory
+   
+    /*2. get pathname's inumber:
+         if (pathname[0]=='/') dev = root->dev;          // root INODE's dev
+         else                  dev = running->cwd->dev;  
+         ino = getino(&dev, pathname);  // NOTE: dev may change with mounting*/ 
+	if(path[0] == '/')
+    {
+        pdev = root->dev;           // start from root
+    }
+    else
+    {
+        pdev = running->cwd->dev;   // start from current working directory
+    }
+    // Get ino num from path & check path existance
+    InoNum = getino(pdev, path);
+	if(InoNum == 0)
+	{
+		printf("Path doesnt exist: Inode Number  = 0 \n");
+		return -1;
+	}
+	
+	//3. get its Minode pointer
+	tempMinoPtr = (MINODE *)iget(dev, InoNum); 
+	
+	//4. check mip->INODE.i_mode to verify it's a REGULAR file and permission OK.
+	 if(!S_ISREG(tempMinoPtr->INODE.i_mode))
+    {
+        printf("This isnt a regular file.\n");
+        return -1;
+    }
+    if(running->uid != tempMinoPtr->INODE.i_uid)
+    {
+        // Check that the permissions are OK
+        printf("You don't have permissions to modify this file.\n");
+        return -1;
+    }
+    
+    /*Check whether the file is ALREADY opened with INCOMPATIBLE mode:
+           If it's already opened for W, RW, APPEND : reject.
+           (that is, only multiple R are OK) */
+    i = 0; 
+    while(i < NFD)
+	{
+		OFT *tempOFT = running->fd[i];
+		// If nothing is in this open file table than skip to next iteration
+		if(tempOFT == NULL) 
+		{	printf("inside i = %d < NFD tempoft = NULL \n", i); // test
+			i++;
+			continue;
+		}
+		else if(tempOFT->mode != 0 && tempMinoPtr == tempOFT->inodeptr)
+		{
+			// We can only have multiple RDs, not WR, RW or APPENDs
+            printf("File is already opened in a non-read mode.\n");
+            return -1;
+		}
+		i++;	
+	}
+	
+	//5. allocate a FREE OpenFileTable (OFT) and fill in values:
+	oftp = (OFT *)malloc(sizeof(OFT));
+    oftp->mode = mode;      // mode = 0|1|2|3 for R|W|RW|APPEND 
+    oftp->refCount = 1;
+    oftp->inodeptr = tempMinoPtr;  // point at the file's minode[]
+	
+	
+    //6. Depending on the open mode 0|1|2|3, set the OFT's offset accordingly:
+	 switch(mode){
+	 case 0 : oftp->offset = 0;     // R: offset = 0
+			  break;
+	 case 1 : TruncateFileMino(tempMinoPtr);        // W: truncate file to 0 size
+			  oftp->offset = 0;
+			  break;
+	 case 2 : oftp->offset = 0;     // RW: do NOT truncate file
+			  break;
+	 case 3 : oftp->offset =  tempMinoPtr->INODE.i_size;  // APPEND mode
+			  break;
+	 default: printf("Open_file(): invalid mode\n");
+                  return(-1);
+      }
+	 //7. find the SMALLEST i in running PROC's fd[ ] such that fd[i] is NULL
+     // Let running->fd[i] point at the OFT entry
+	 for(i = 0; i < NFD; i++)
+		{
+			if(running->fd[i] == NULL)
+			{
+				running->fd[i] = oftp;
+				break;
+			}
+		}
+	
+	/*8. update INODE's time field
+         for R: touch atime. 
+         for W|RW|APPEND mode : touch atime and mtime
+      mark Minode[ ] dirty  */	
+	if(mode == 0)
+	{
+		tempMinoPtr->INODE.i_atime = time(0L);
+	}
+	else if(mode > 0 && mode < 4)
+	{
+		tempMinoPtr->INODE.i_atime = time(0L);
+		tempMinoPtr->INODE.i_mtime = time(0L);
+	}
+	tempMinoPtr->dirty = 1;
+	 
+	printf("Opened file: %s Mode: %d Fd: %d   \n", path, mode, i); // test
+	//9. return i as the file descriptor
+	return i;
 }
 
 

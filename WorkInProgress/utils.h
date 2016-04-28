@@ -10,6 +10,7 @@ char cmd[32], pathname[128], params[64], cwdname[128], blkBuf[BLOCK_SIZE], line[
 int ninodes, nblocks, ifree, bfree, InodeBeginBlock, nproc, dev, bmap, imap;
 
 int iblock;
+int openfd;
 
 MINODE *root;
 MINODE minode[NMINODES];
@@ -48,7 +49,6 @@ int idealloc(int dev, int ino);
 int bdealloc(int dev, int bno);
 int rm_child(MINODE *pip, char *child);
 
-/************* LEVEL 1 ******************/
 
 /* Start of Linux Commands Functions */
 int ls(char *path);
@@ -59,10 +59,11 @@ int pwd(char *pathstr);
 int creat_file(char *path);
 int Link(char *oPath);
 int SymLink(char *oPath);
-int my_unlink(char *path);
 int open_file(char *path);
-int my_chown(char *path);
-int quit(char *path);
+int mlseek(char *path);
+int close_file(char *path);
+int read_file(char *path);
+
 // BLOCK Operations
 int get_super_block(int dev, char *buf);
 
@@ -77,11 +78,10 @@ int TruncateFileMino(MINODE *myMinoPtr);
 int ls_dir(MINODE *mip);
 int ls_file(MINODE *mip, char *file);
 int rm_file(char *path);
-
-
 char *read_link(char *path);
-int TruncateFileMino(MINODE *myMinoPtr);
-
+int pfd(); // disply currently opened files.
+int myread(int fd, char *buf, int nbytes);
+int getMinBytes(int nbytes, int avilbytes, int remainbytes);
 
 // Bit functions
 int tst_bit(char *buf, int i);
@@ -99,7 +99,7 @@ int dir_isempty(MINODE *mip);
 
 /*Function pointers for commands */
 #define NUM_CMDS 13
-static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, rm_file, pwd, Link, SymLink, my_unlink, open_file, my_chown, quit};
-static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "rm", "pwd", "link", "symlink", "ul", "open", "chown", "quit"};
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, rm_file, pwd, Link, SymLink, open_file, mlseek, close_file, read_file};
+static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "rm", "pwd", "link", "symlink", "open", "lseek", "close", "read"};
 
 #endif

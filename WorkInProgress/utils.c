@@ -18,6 +18,7 @@ extern MINODE minode[NMINODES];
 extern char blkBuf[BLOCK_SIZE];
 extern int ninodes, nblocks, ifree, bfree, InodeBeginBlock;
 extern GD *gp;
+extern int openfd;
 void get_block(int dev, int blk, char mbuf[])
 {
     // using the device descriptor seek to the block we want to read i.e (blk & 1024)
@@ -1374,88 +1375,6 @@ int Link(char *oPath)
 	printf("Succesfully linked files %s to %s \n",OFname, NFName);
 	return 0;
 }
-int my_unlink(char *path)
-{
-    printf("unlink: path = %s\n", path);
-
-    const int mdev = running->cwd->dev;
-    const int uid = running->uid;
-
-    int ino = getino(mdev, path);
-    if(ino <= 0)
-    {
-        printf("Error: Invalid path\n");
-        return -1;
-    }
-
-    MINODE *mip = iget(mdev, ino);
-    if(mip == NULL)
-    {
-        printf("Error: Invalid Minode\n");
-        iput(mdev, mip);
-        return 0;
-    }
-
-    // Verify that the user has permission to unlink the file
-    if(uid != SUPER_USER && uid != mip->INODE.i_uid)
-    {
-        printf("Error: Permissions denied\n");
-        iput(mdev, mip);
-        return -1;
-    }
-
-    // Check that it is not a directory. We can only unlink files
-    if(S_ISDIR(mip->INODE.i_mode))
-    {
-        printf("Error: path is directory. cannot unlink directories\n");
-        iput(mdev, mip);
-    }
-
-    // Check that the file is not busy. Used by other process
-    if(mip->refCount > 1)
-    {
-        printf("Error: file is busy\n");
-        iput(mdev, mip);
-    }
-
-    INODE *ip = &mip->INODE;
-    int i;
-    // Start deallocating blocks
-    for(i = 0; i < 12 && ip->i_block[i] != 0; i++)
-    {
-        bdealloc(mdev, ip->i_block[i]);
-    }
-
-    // Deallocate inodes
-    idealloc(mdev, ino);
-
-    char *parent, *child, *dirc, *basec;
-
-    // Get Basename and Dirname of from path
-    // if directory is /a/b/c the parent = /a/b child = c or if directory a/b/c then parent is a/b and child is c
-    // if command is mkdir C then parent is . and child is C
-    dirc = strdup(path);
-    basec = strdup(path);
-    parent = dirname(dirc);
-    child = basename(basec);
-
-    printf("unlink: parent = %s, child = %s\n", parent, child);
-
-    // Get the parents inumber and minode
-    int parent_ino = getino(mdev, parent);
-    MINODE *pmip = iget(mdev, parent_ino);
-    INODE *pip = &pmip;
-
-    // Remove the file entry from the parent directory
-    rm_child(pmip, child);
-
-    // Touch_update parent directory information
-    touch_update(parent);
-
-    iput(mdev, pmip);
-
-}
-
 // This function is similer to link but instead creats a soft link between files
 // symlink oldNAME  newNAME    e.g. symlink /a/b/c /x/y/z
 // ASSUME: oldNAME has <= 60 chars, inlcuding the ending NULL byte.
@@ -1546,9 +1465,13 @@ int open_file(char *path)
 	int i, pdev, InoNum, mode;
 	MINODE *tempMinoPtr;
 	OFT *oftp; // Open File Table pointer
-
+	
+	char *tempPath, *tempParams;
+	tempPath = strdup(path);
+	tempParams = strdup(params);
+	
 	// set mode from string
-	mode = atoi(params);
+	mode = atoi(tempParams);
 
 	//1. ask for a pathname and mode to open: Done in main
     // You may use mode = 0|1|2|3 for R|W|RW|APPEND.
@@ -1558,7 +1481,7 @@ int open_file(char *path)
          if (pathname[0]=='/') dev = root->dev;          // root INODE's dev
          else                  dev = running->cwd->dev;
          ino = getino(&dev, pathname);  // NOTE: dev may change with mounting*/
-	if(path[0] == '/')
+	if(tempPath[0] == '/')
     {
         pdev = root->dev;           // start from root
     }
@@ -1567,7 +1490,7 @@ int open_file(char *path)
         pdev = running->cwd->dev;   // start from current working directory
     }
     // Get ino num from path & check path existance
-    InoNum = getino(pdev, path);
+    InoNum = getino(pdev, tempPath);
 	if(InoNum == 0)
 	{
 		printf("Path doesnt exist: Inode Number  = 0 \n");
@@ -1659,7 +1582,8 @@ int open_file(char *path)
 	}
 	tempMinoPtr->dirty = 1;
 
-	printf("Opened file: %s Mode: %d Fd: %d   \n", path, mode, i); // test
+	printf("Opened file: %s Mode: %d Fd: %d   \n", tempPath, mode, i); // test
+	openfd = i; // saved to a global file discriptor
 	//9. return i as the file descriptor
 	return i;
 }
@@ -2489,78 +2413,275 @@ int dir_isempty(MINODE *mip)
 	return 0;
 }
 
-int my_chown(char *path)
+// Format in c sys:  off_t lseek(int fildes, off_t offset, int whence); 
+// The lseek() function repositions the offset of the open file 
+// associated with the file descriptor ie reposition read/write file offset.
+// lseek() returns the resulting offset location as measured 
+//  from the beginning of the file upon success. 
+int mlseek(char *path)
 {
-
-
-    const int mdev = running->cwd->dev;
-    if(params[0] == 0 || !params)
-    {
-        printf("Error! usage: chown [new owner] [path to file]\n");
+	int originalPosition = 0;
+	// We get fd from path str & position from global params str;
+	int fd = atoi(path);
+	int position = atoi(params);
+	
+	// 1. From fd, find the OFT entry.	
+	OFT *entry = running->fd[fd];
+	
+	// 2.change OFT entry's offset to position but make sure 
+	// NOT to over run either ends of the file. 
+	if( entry->inodeptr->INODE.i_size < position && position > 0)
+	{
+		printf("Error: position beyond the file size ie out of range");
         return -1;
-    }
-
-    char *tempPath = strdup(params);
-    char *newOwner = strdup(path);
-
-    printf("change ownership: path = %s new_owner = %s\n", tempPath, newOwner);
-
-    if(path[0] == 0 || !path)
-    {
-        printf("Error: please enter a valid path");
-        return 0;
-    }
-
-
-
-    // Get the path ino
-    int ino = getino(mdev, tempPath);
-
-    if(ino <= 0)
-    {
-        printf("Error: Invalid path\n");
-        return 0;
-    }
-
-    // Get the Memory Inode
-    MINODE *mip = iget(mdev, ino);
-    INODE *ip = &mip->INODE;
-
-
-    u64 owner = strtol(newOwner, NULL, 10);
-    ip->i_uid = owner;
-
-    mip->dirty = 1;
-    iput(mdev, mip);
-
-    return 0;
+	}	
+	// reposition read/write oft offset
+	originalPosition = entry->offset;
+	entry->offset = position;
+	
+	// 3. return originalPosition
+	return originalPosition;
 }
-int quit(char *path)
+
+// Closes a file given a fd which is atoi(path) in our case
+int close_file(char *path)
 {
-    int i = 0;
-    MINODE *mip;
+	int fd;
+	MINODE *tempMiptr;
+	OFT *oftp; // open file table ptr
+	fd = atoi(path); // convert string to int due to our func call sys
+	
+	// 1. verify fd is within range. PROC OFT fd[] is between 0 and 10
+	if(fd > NFD || fd < 10)
+	{
+		printf("The file disciptor %d is out of range \n", fd);
+		return -1;	
+	}
+	
+	// 2. verify running->fd[fd] is pointing at a OFT entry
+	if(running->fd[fd] == 0)
+	{
+		printf("The file disciptor %d is not pointing OFT entry \n", fd);
+		return -1;		
+	}
+	
+	// 3. The following code segments should be fairly obvious:
+	// We decrement oft ref count since we are closing an open file
+     oftp = running->fd[fd];
+     running->fd[fd] = 0;
+     oftp->refCount--;
+     // if there is 1+ refs then we cant delete the minode
+     if (oftp->refCount > 0) return 0; 
+	 
+	 // last user of this OFT entry ==> dispose of the Minode[]
+     tempMiptr = oftp->inodeptr;
+     iput(fd, tempMiptr);
 
-    printf("Exiting program...\n");
-    while(i < NMINODES)
+     return 0;	
+}
+
+//  This function displays the currently opened files as follows:
+    //
+    //        fd     mode    offset    INODE
+    //       ----    ----    ------   --------
+    //         0     READ    1234   [dev, ino]
+    //         1     WRITE      0   [dev, ino]
+    //      --------------------------------------
+    //  to help the user know what files have been opened eg test open_file()
+int pfd()
+{
+	int i;
+
+	printf("----Currently opened files---- \n");
+	printf("%-10s%-10s%-10s%-10s\n", "fd", "mode", "offset", "INODE");
+    printf("%-10s%-10s%-10s%-10s\n", "----", "----", "------", "-----");
+    
+    for(i = 0; i < NFD; i++)
     {
-        mip = &minode[i];
+        if(running->fd[i] == NULL)
+        {
+            continue;
+        }
 
-        if(mip->refCount > 0)
-            iput(mip->dev, mip);
+        // The fd number
+        printf("%-10d", i);
 
-        i++;
+        // The mode
+        switch(running->fd[i]->mode)
+        {
+        case 0 : printf("%-10s", "READ");
+              break;
+        case 1 : printf("%-10s", "WRITE");// WR: truncate file to 0 size
+              break;
+        case 2 : printf("%-10s", "RW"); // RW 
+              break;
+        case 3 : printf("%-10s", "APPEND");// APPEND 
+              break;
+        default: printf("Not Mode\n");
+              return(-1);
+        }
+
+        // offset && running dev ino values
+        printf("%-10d [%d, %d]\n", running->fd[i]->offset, running->fd[i]->inodeptr->dev, running->fd[i]->inodeptr->ino);
     }
+	printf("----------------------------------------");
+    return 0;	
+}
 
-    exit(0);
+/* int myread(int fd, char buf[ ], nbytes) behaves EXACTLY the same as the
+read() system call in Unix/Linux. 
+The algorithm of myread() can be best explained in terms of the following 
+diagram.
 
+(1).  PROC              (2).                          | 
+     =======   |--> OFT oft[ ]                        |
+     | pid |   |   ============                       |
+     | cwd |   |   |mode=flags|                       | 
+     | . ..|   |   |minodePtr ------->  minode[ ]     |      BlockDevice
+     | fd[]|   |   |refCount=1|       =============   |   ==================
+ fd: | .------>|   |offset    |       |  INODE    |   |   | INODE -> blocks|
+     |     |       |===|======|       |-----------|   |   ==================
+     =======           |              |  dev,ino  |   |
+                       |              =============   |
+                       |
+                       |<------- avil ------->|
+    -------------------|-----------------------
+    |    |    | ...  |lbk  |   |  ...| .......|
+    -------------------|---|------------------|-
+lbk   0    1 .....     |rem|                   |
+                     start                   fsize  
+                        
+------------------------------------------------------------------------------ */
+int myread(int fd, char *buf, int nbytes)
+{
+	// avilbytes = fileSize - OFT's offset ie number of bytes still available in file.
+	int count = 0, avilbytes, lbk, blk, startbyte, remainbytes;  
+    char rBuf[BLOCK_SIZE]; // the read buffer
+    // for blk setting in using lbk in Indirect & d_indir blocks by loading 256
+    int DiskIntBuf[256]; // blk nums from getblk then use mailmans algo 
+    char *cq;  // Our input char pointer
+    INODE *inoPtr;
+    MINODE *minoPtr;
+    OFT *oftp;
+    
+    //1. Set fs structs from running proc struct
+    oftp = running->fd[fd];
+    minoPtr = oftp->inodeptr;
+    inoPtr = &(minoPtr->INODE);
+    
+    // avil = fileSize - OFT's offset // number of bytes still available in file.
+    avilbytes = inoPtr->i_size - oftp->offset;  
+    cq = buf;// cq points at buf[ ]
+    // For safty
+    strncpy(buf, "", BLKSIZE);
+    
+    // 2. loop while either we read enough bytes or run out of availible bytes
+    // by incrementing  oftp->offset
+	while(nbytes && avilbytes)
+	{
+		// Compute LOGICAL BLOCK number lbk and startByte in that block from offset;
+        lbk       = oftp->offset / BLOCK_SIZE;
+        startbyte = oftp->offset % BLOCK_SIZE;
+		
+		
+       if (lbk < 12){                     // lbk is a direct block
+           blk = inoPtr->i_block[lbk]; // map LOGICAL lbk to PHYSICAL blk
+       }
+       else if (lbk >= 12 && lbk < 256 + 12) { 
+            //  indirect blocks 
+            // The 12 block has been allocated so we loop through 12 to 268 blocks
+            //  until we find an empty block index.
+            // get block 12 to get to indir blks
+            get_block(minoPtr->dev, inoPtr->i_block[12], (char *) DiskIntBuf); 
+            blk = DiskIntBuf[lbk - 12]; //cause we map LOGICAL lbk num to physical data blk addr
+       }
+       else{ 
+            //  double indirect loop blocks 268 to 256^2 + 12 if needed
+            // first we subtract lbk - 268(IDirect and DIdirect blks) 
+            // then / or % to get offset & lbk index
+            int dInDirIdx = (lbk - 268) / 256;
+            int dInDirOffset = (lbk - 268) / 256;
+            
+            // get block 13 to get to double indir blks
+            get_block(minoPtr->dev, inoPtr->i_block[13], (char *) DiskIntBuf); 
+            // get double indr blk num from DiskIntBuf
+            //cause we map LOGICAL lbk num to physical blk
+            int doubleIndrBlkNum = DiskIntBuf[dInDirIdx];
+            // get data blk addr by gettblk( blk num..) then index int buff
+            get_block(minoPtr->dev, doubleIndrBlkNum, (char *) DiskIntBuf);  
+            blk = DiskIntBuf[dInDirOffset]; // 
+       } 
+		
+	   // load the data block into rBuf[BLOCK_SIZE]the read buffer 1024
+		get_block(minoPtr->dev, blk, rBuf);
+		
+	   /* copy from startByte to buf[ ], at most remain bytes in this block */
+	   char *cp = rBuf + startbyte; // this char points to disk addr
+	   remainbytes = BLOCK_SIZE - startbyte;
+	   
+	   // copy in chunks
+	   int maxokbytes = getMinBytes(nbytes, avilbytes, remainbytes);
+	   // Input char ptr, char addr ptr, max # of 
+	   // bytes we can copy from read buf to buf
+	   strncpy(cq, cp, maxokbytes); 
+	   
+	   // Values inc / dec for next accurate ptr to write starting from
+	   *cq += maxokbytes; // moce to next correct addr
+	   *cp += maxokbytes;
+	   oftp->offset += maxokbytes;           // advance offset by max copiable bytes
+	   count += maxokbytes;                  // inc count as number of bytes read
+	   avilbytes -= maxokbytes;
+	   nbytes -= maxokbytes;
+	   remainbytes -= maxokbytes;
+	   
+	   // Check if we cant copy any more in this itr
+	   if(avilbytes <= 0 || nbytes <= 0)
+	   {
+		   break;
+	   }
+	   // if one data block is not enough, loop back to OUTER while for more ...
+	}
+	printf("myread: read %d char from file descriptor %d\n", count, fd);  
+   return count;   // count is the actual number of bytes read
+}
+// Helper func for myread to copy more than 1 byte at a time
+// returns max # of bytes we can copy given perameters
+int getMinBytes(int nbytes, int avilbytes, int remainbytes)
+{
+	int min = nbytes; 
+	if(remainbytes < min) {min =  remainbytes;}
+	if(avilbytes < min) {min =  avilbytes;}
+	return min;
 }
 
 
-
-
-
-
-
+/*int read_file()
+{
+  Preparations: 
+    ASSUME: file is opened for RD or RW;
+    ask for a fd  and  nbytes to read;
+    verify that fd is indeed opened for RD or RW;
+    return(myread(fd, buf, nbytes));
+}*/
+int read_file(char *path)
+{
+	int fd = atoi(path);
+	int nbytes = atoi(params);
+	char buf[BLOCK_SIZE];
+	OFT *oftp = running->fd[fd];
+	if(oftp == NULL)// wrong fd
+	{
+		printf("There is no file with %d as fd\n", fd);
+		return -1;
+	}
+	// verify that fd is indeed opened for RD 0 or RW 2;
+	if(oftp->mode != 0 && oftp->mode != 2)
+	{
+		printf("File with fd = %d has wrong permissions\n", fd);
+		return -1;		
+	}
+    return myread(fd, buf, nbytes);
+}
 
 
 

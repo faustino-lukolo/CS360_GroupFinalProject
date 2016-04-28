@@ -63,7 +63,14 @@ int open_file(char *path);
 int mlseek(char *path);
 int close_file(char *path);
 int read_file(char *path);
+<<<<<<< Updated upstream
 //int mycat(char *fname);
+=======
+int my_chown(char *path);
+int my_chmod(char *path);
+int my_unlink(char *path);
+int quit(char *path);
+>>>>>>> Stashed changes
 
 // BLOCK Operations
 int get_super_block(int dev, char *buf);
@@ -99,8 +106,8 @@ int dir_isempty(MINODE *mip);
 
 
 /*Function pointers for commands */
-#define NUM_CMDS 13
-static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, rm_file, pwd, Link, SymLink, open_file, mlseek, close_file, read_file};
-static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "rm", "pwd", "link", "symlink", "open", "lseek", "close", "read"};
+#define NUM_CMDS 17
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, rm_file, pwd, Link, my_unlink, SymLink, my_chown, my_chmod, open_file, mlseek, close_file, read_file, quit};
+static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "rm", "pwd", "ln", "ul", "symlink", "chown", "chmod", "open", "lseek", "close", "read", "quit"};
 
 #endif

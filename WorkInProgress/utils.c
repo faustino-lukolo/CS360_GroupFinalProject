@@ -1311,6 +1311,40 @@ int SymLink(char *oPath)
 	return 0;
 }
 
+/* Open File Data Structures:
+
+    running
+      |                                                  
+      |                                                    ||****************** 
+    PROC[ ]              OFT[ ]              MINODE[ ]     ||      Disk dev
+  ===========    |---> ===========    |--> ============    || ===============
+  |ProcPtr  |    |     |mode     |    |    |  INODE   |    || |      INODE   
+  |pid, ppid|    |     |refCount |    |    | -------  |    || =============== 
+  |uid      |    |     |minodePtr|---->    | dev,ino  |    || 
+  |cwd      |    |     |offset   |         | refCount |    ||******************
+  |         |    |     ====|======         | dirty    |
+  |  fd[10] |    |         |               | mounted  |         
+  | ------  |    |         |               ============
+0 |   ----->|--->|         |
+  | ------  |              |   
+1 |         |              |
+  | ------  |             --------------------------------
+2 |         |             |0123456.............
+  | ------  |             --------------------------------    
+  ===========        logical view of file: a sequence of bytes */
+// This function opens a file given a path name and the mode (which is params) 
+// to open it with. 
+int open_file(char *path)
+{
+	//1. ask for a pathname and mode to open:
+    // You may use mode = 0|1|2|3 for R|W|RW|APPEND
+	
+	
+	
+	
+}
+
+
 // This function handles the dir entry into the MINODE, INODE, DIR fs structures.
 // pip points at the parent minode[] of "/a/b", name is a string "c")
 int my_mkdir(MINODE *pip, char *bname)
@@ -1560,6 +1594,90 @@ void PutNamePDir(MINODE *parentMinoPtr, int ino, char *name)
 		i++;
 	}
 		
+}
+/* int truncate(MINODE *mip)
+{
+  1. release mip->INODE's data blocks;
+     a file may have 12 direct blocks, 256 indirect blocks and 256*256
+     double indirect data blocks. release them all.
+  2. update INODE's time field
+
+  3. set INODE's size to 0 and mark Minode[ ] dirty
+}*/
+// This function deallocates myMinoPtr->INODE.i_blocks, first direct 1-11 then indirect
+// 256 then double indirect blocks 256^2  if they arnt empty
+int TruncateFileMino(MINODE myMinoPtr)
+{
+	int i, j;
+	int buf1[256];
+	int buf2[256];
+	
+	// Direct blocks
+	i = 0;
+	while(i < 12)
+	{
+		if(myMinoPtr->INODE.i_block[i] != 0)
+		{
+			bdealloc(myMinoPtr->dev, myMinoPtr->INODE.i_block[i]);	
+		}
+		else
+		{
+			break;
+		}
+	i++;	
+	}
+	
+	i = 0;
+	// Indirect blocks
+	if(myMinoPtr->INODE.i_block[12] != 0)
+	{
+		get_block(myMinoPtr->dev, myMinoPtr->INODE.i_block[12], buf1);
+		while( i < 256 )
+        {
+            if(buf1[i] != 0)
+            {
+                bdealloc(dev, buf1[i]);	
+            }
+            else
+            {
+                break;
+            }
+            i++;
+        }		
+	}
+	
+	// Double Indirect Blocks
+	if(myMinoPtr->INODE.i_block[13] != 0)
+    {
+        get_block(myMinoPtr->dev, myMinoPtr->INODE.i_block[13], buf1);
+        for(j = 0; j < 256; j++)
+        {
+            if(buf1[j] != 0)
+            {
+                get_block(myMinoPtr->dev, buf1[j], buf2);
+                for(i = 0; i < 256; i++)
+                {
+                    if(buf2[i] != 0)
+                    {
+                         bdealloc(dev, buf2[i]);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+	
+	
+	
+	
+	printf("TruncateFileMino() deallocated direct indir double indir blocks");
 }
 
 // Returns the index of a useable (has enough space for dir entry) i block.

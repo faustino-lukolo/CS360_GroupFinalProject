@@ -58,7 +58,7 @@ int pwd(char *pathstr);
 int creat_file(char *path);
 int Link(char *oPath);
 int SymLink(char *oPath);
-
+int open_file(char *path); 
 
 // BLOCK Operations
 int get_super_block(int dev, char *buf);
@@ -70,6 +70,7 @@ void PutNamePDir(MINODE *parentMinoPtr, int ino, char *name);
 int GetNotFullIblockIndex(MINODE *mip, char *name);
 int my_creat(MINODE *pip, char *name);
 char *read_link(char *path); 
+int TruncateFileMino(MINODE myMinoPtr); 
 
 // Bit functions
 int tst_bit(char *buf, int i);

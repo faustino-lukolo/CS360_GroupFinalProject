@@ -221,17 +221,17 @@ MINODE *iget(int dev, uint32_t ino)
     // loop till refCount = 0 or i == NMINODES (No space in minode[] array)
     while (minode[i].refCount > 0 && i < NMINODES) { i++; }
     if (i == NMINODES) {
-        //printf("Error: MINODE[] IS FULL!\n");
+        printf("Error: MINODE[] IS FULL!\n");
         return 0;
     }
 
     // get the inode block iBlock by using mailman's algorithm
     blk = (ino - 1) / 8 + InodeBeginBlock;
-    //printf("iget() blk = %d\n", blk);
+    printf("iget() blk = %d\n", blk);
 
     // get the offset of the inode
     offset = (ino - 1) % 8;
-    //printf("iget() offset = %d\n", offset);
+    printf("iget() offset = %d\n", offset);
 
 
     // Find this blk
@@ -252,7 +252,7 @@ MINODE *iget(int dev, uint32_t ino)
 
     // return the address of this minode[i]
 
-    //printf("iget() Working!\n");
+    printf("iget() Working!\n");
 
     return &minode[i];
 }
@@ -262,32 +262,34 @@ int iput(int mdev, MINODE *mip)
     int blk, offset;
     INODE *ip;
 
-   // printf("iput(): dev = %d\n", mdev);
-    //printf("iput() decrementing inode refCount = %d\n", mip->refCount);
+    printf("iput(): dev = %d\n", mdev);
+
+
+    printf("iput() decrementing inode refCount = %d\n", mip->refCount);
 
     // Step 1: decrease the inode refCount by 1
     mip->refCount--;
     if(mip->refCount > 0)
     {
-        //printf("iput() refCount = %d\n", mip->refCount);
+        printf("iput() refCount = %d\n", mip->refCount);
         return 0;
     }
 
     // Step 2: check if the Inode has not been modified
     if(mip->dirty == 0)
     {
-        //printf("iput() inode has not been modified : dirty = %d\n", mip->dirty);
+        printf("iput() inode has not been modified : dirty = %d\n", mip->dirty);
         return 0;           // No need to put Inode back into device since it has not been modified
     }
 
     // Step 3: Write Inode back into disk using MailMan's Algorith to find blk and offset
-    blk     = (mip->ino - 1) / 8 + InodeBeginBlock;
+    blk     = (mip->ino - 1) / InodeBeginBlock;
     offset  = (mip->ino -1) % 8;
-    //printf("Preparing to write inode to disk @ blk = %d offset = %d\n", blk, offset);
+    printf("Preparing to write inode to disk @ blk = %d offset = %d\n", blk, offset);
 
     // Step 4: read the block into the buffer using the blk number
-    get_block(dev, blk, buf);
-    ip = (INODE *)buf + offset;
+    get_block(mip->dev, blk, buf);
+    ip = (INODE *)buf;
 
     // Step 5: Copy the In_Memory INODE struct into ip (INODE inside buffer array)
     memcpy(ip, &(mip->INODE), sizeof(INODE));
@@ -320,7 +322,7 @@ uint32_t getino(int dev, char *path)
     uint32_t ino = 0;
     char **names = {0};               // Holds the tokens of path i.e. /a/b/c/ -> [a][b][c]...
     MINODE *mip = 0;
-    //printf("******************************\n");
+    printf("******************************\n");
     printf("getino() path = %s\n", path);
 
     if (path[0]) {
@@ -356,7 +358,7 @@ uint32_t getino(int dev, char *path)
     int i= 0;
     // search for ino of each path in the names[][]
     while (names[i] != 0) {
-        //printf("searching ino of %s\n", names[i]);
+        printf("searching ino of %s\n", names[i]);
         ino = search(dev, names[i], ip);            // remember: ip = &running->cwd->INODE; where running is a PROC *running
 
         if(ino <= 0){
@@ -367,27 +369,27 @@ uint32_t getino(int dev, char *path)
                 return -1;
             }
         }
-       // printf("[%s] ino = %d\n", names[i], ino);
+        printf("[%s] ino = %d\n", names[i], ino);
 
         if(mip){
-            //printf("put mip back into device\n");
+            printf("put mip back into device\n");
             iput(mip->dev, mip);
         }
 
-        //printf("get the mip for: name = %s device = %d ino = %d\n", names[i], dev, ino);
+        printf("get the mip for: name = %s device = %d ino = %d\n", names[i], dev, ino);
 
         i++;
         if(names[i] != 0)
         {
-            //printf("names[i] exists = %s\n", names[i]);
+            printf("names[i] exists = %s\n", names[i]);
             mip = iget(dev, ino);
             ip = &mip->INODE;
         }
-        //printf("getino() next i = %d\n", i);
+        printf("getino() next i = %d\n", i);
 
     }
 
-    //printf("No other names[] i = %d\n", i);
+    printf("No other names[] i = %d\n", i);
 
     i = 0;
     while (names[i]) { free(names[i++]); }
@@ -582,10 +584,21 @@ int tst_bit(char *buf, int i)
 int set_bit(char *buf, int i)
 {
     int byte, offset;
-	byte = i/8;
-	offset = i%8;
-	buf[byte] |= (1 << offset);
-	return 0;
+    char *mbuf;
+    char c;
+
+    byte = i  / 8;
+    offset = i % 8;
+
+    mbuf = (buf + byte);
+    c = *mbuf;
+
+    c |= (1 << offset);
+    printf("setting bit = %c", c);
+
+    *mbuf = c;
+
+    return 0;
 }
 // Sets bit to 0 to say inode/block is free
 int unset_bit(char *buf, int i)
@@ -829,9 +842,7 @@ int ls(char *path)
 /* local variables */
     uint32_t ino;                // the inode number of path
     MINODE *mip;            // pointer to the inode inside minode[] array
-    char *dirc, *basec, *parent, *child;
-
-    //printf("cmd = ls path = %s \n", pathname);
+    printf("cmd = ls path = %s \n", pathname);
     getchar();
 
     /* Case 1: pathname is null set inode number to the running->cwd->ino
@@ -842,156 +853,29 @@ int ls(char *path)
     if(!path || !pathname[0])
     {
         ino = running->cwd->ino;
-        //printf("running->cwd->ino = %d\n", ino);
+        printf("running->cwd->ino = %d\n", ino);
     }
     else if(pathname[0] == '/' && pathname[1] == 0)
-    {
         ino = root->ino;
-    }
     else
         ino = getino(dev, path);
 
     if(!ino)
     {
-        //printf("Invalid pathname\n");
+        printf("Invalid pathname\n");
         return -1;
     }
-
-    // Find the dirname and basenaem
-    dirc    = strdup(path);
-    basec   = strdup(path);
-    parent  = dirname(dirc);
-    child   = basename(basec);
-
-
 
     // // Get the indoe from minode[]
     mip = iget(dev, ino);
     printf("ls() dev = %d ino = %d\n", mip->dev, ino);
 
     // // Each data block of mip->INODE contains DIR entries
-    if(S_ISDIR(mip->INODE.i_mode))
-    {
-       ls_dir(mip, child);
-    }
-    else
-    {
-        ls_file(mip, child);
-    }
-
+    findDatablocks(&mip->INODE, 0);
     iput(mip->dev, mip);
     getchar();
 
 }
-int ls_dir(MINODE *mip)
-{
-    INODE *ip = &mip->INODE;         // Saves typing
-    MINODE *cip;                     // child inode pointer
-
-    int mdev = mip->dev;
-
-    DIR *dp;
-    char buf[BLOCK_SIZE], *cp;
-
-    int i_blks = ip->i_size / BLOCK_SIZE;
-    printf("ls directory: dev = %d blksize = %d\n", dev, i_blks);
-
-    int i = 0;
-
-    // Search i_blocks of INODE 0 - 11.. We dont need indirect and double indirect blocks
-    while(i < 12)
-    {
-        if(ip->i_block[i] == 0 || i >= 12)
-            break;
-
-        get_block(mdev, ip->i_block[i], buf);
-        dp = (DIR *)buf;
-        cp = buf;
-
-        while(cp < buf + BLOCK_SIZE)
-        {
-            char *temp = strdup(dp->name);
-            temp[dp->name_len] = 0;
-
-            cip = iget(mdev, dp->inode);
-            ls_file(cip, temp);
-
-            //printf("ls done! \n");
-
-            iput(mdev, cip);
-
-            cp += dp->rec_len;
-            dp = (DIR *)cp;
-        }
-
-        i++;
-    }
-
-    return 0;
-
-}
-
-int ls_file(MINODE *mip, char *file)
-{
-
-    static const char *permissions = "rwxrwxrwx";
-    char *str_time;
-
-    if(mip == NULL)
-    {
-        printf("Error: Memory Inode is Null\n");
-        return -1;
-    }
-
-    INODE *ip = &mip->INODE;
-
-    // Get info from INODE Struct
-    uint16_t mode   = ip->i_mode;
-    uint16_t links  = ip->i_links_count;
-    uint16_t uid_t  = ip->i_uid;
-    uint16_t gid    = ip->i_gid;
-    uint16_t size   = ip->i_size;
-
-    str_time = ctime((time_t *)&ip->i_mtime);
-    str_time[strlen(time) - 1] = 0;
-
-    switch(mode & 0xF000)
-    {
-        case 0x8000: putchar('-');      // regular file
-            break;
-        case 0x4000: putchar('d');      // directory
-            break;
-        case 0xA000: putchar('l');      // link
-            break;
-        default:    putchar('$');
-    }
-
-
-    int i = 0, len = strlen(permissions);
-    while(i < len)
-    {
-        if(mode & (1 << len - 1 - i))
-        {
-            putchar(permissions[i]);
-        }
-        else
-        {
-            putchar('-');
-        }
-
-        i++;
-    }
-
-    // Display file inode information
-    printf("%4u %4u %4u %4u %4u %s\n", mode, links, uid_t, gid, size, file);
-
-    return 1;
-
-
-}
-
-
-
 
 int cd(char *path)
 {
@@ -1038,6 +922,90 @@ int cd(char *path)
 }
 
 
+// Finds the datablocks where the dir entries are inside minode[]
+int findDatablocks(INODE *ip, int pstat)
+{
+    int i;
+    uint32_t buf[256], mbuf[256];
+    // Search the first 11 blocks : Direct blocks
+    for (i = 0; i < 12; i++) {
+        if (ip->i_block[i]) {
+            printDirEntry(ip->i_block[i], pstat);
+        }
+    }
+
+    // Search i_blocks[12]: indirect blocks
+    if(ip->i_block[12])
+    {
+        // read indirect block into buffer
+        get_block(dev, ip->i_block[12], (char*)buf);
+
+        // there are 256 blocks in i_block[12] indirect block
+        for (i = 0; i < 256; i++) {
+            if (buf[i]) {
+                printDirEntry(buf[i], pstat);
+            }
+        }
+    }
+
+    // Search i_block[13]: double indirect blocks
+    if (ip->i_block[13]) {
+
+        // read the block into buffer
+        get_block(dev, ip->i_block[13], (char*)buf);
+
+        int j;
+        // there are 256 blocks in i_block[13] each of which has 256 additional blocks
+        for (i = 0; i < 256; i++) {
+            if (buf[i]) {
+                // read this block into mbuf
+                get_block(dev, buf[i], (char*)mbuf);
+                // search the 256 blocks of block buf[i]
+                for (j = 0; j < 256; j++) {
+                    if(mbuf[j])
+                    {
+                        printDirEntry(mbuf[j], pstat);
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+int printDirEntry(int blk, int pstat)
+{
+    int i;
+    char *cp;
+    DIR *dp;
+    char mbuf[BLOCK_SIZE], tmpname[256];
+
+    get_block(dev, blk, mbuf);
+    dp = (DIR*)mbuf;
+    cp = mbuf;
+
+    // Search the buffer for all dir entries
+    while (cp < mbuf + BLOCK_SIZE) {
+        if (pstat) {
+            printf("print file stat... \n");
+        }
+        else
+        {
+            // Clear the temp dir entry name
+            // copy the dp->name found in DIR Struct into tmpname
+            bzero(tmpname, 256);
+            strncpy(tmpname, dp->name, dp->name_len);
+            printf("%4d %4d %4d %s\n", dp->inode, dp->rec_len, dp->name_len, tmpname);
+        }
+
+        // Go to the next entry by adding the rec_len to the char pointer cp
+        cp += dp->rec_len;
+        // set the Dir pointer dp to this next entry and repeat
+        dp = (DIR *)cp;
+    }
+    return 0;
+}
+
 /** HOW TO MKDIR **
 Assume: command line = "mkdir pathname" OR  "creat pathname"
 Extract cmd, pathname from line and save them as globals.
@@ -1059,13 +1027,11 @@ Extract cmd, pathname from line and save them as globals.
     6. iput(pip);
     }
 */
-
 int make_dir(char *path)
 {
     char *dirc, *basec, *child, *parent;
 
     MINODE *mip;
-    INODE *pip;
     int pdev, ino;
 
     printf("mkdir(): path = %s\n", path);
@@ -1105,11 +1071,9 @@ int make_dir(char *path)
 
     // Step 4: Get the In_MEMORY minode of parent:
     mip = iget(pdev, ino);
-    pip = &mip->INODE;
     printf("in_MEMORY minode of parent: dev = %d\n", mip->dev);
-    getchar();
-    // Step 5: Verify parent INODE is a DIR (HOW?)
 
+    // Step 5: Verify parent INODE is a DIR (HOW?)
     if(!S_ISDIR(mip->INODE.i_mode))
     {
         printf("Parent Path is not a directory\n");
@@ -1119,9 +1083,9 @@ int make_dir(char *path)
     }
 
      //Step 6: Verify  child does NOT exists in the parent directory (HOW?);
-     // By calling the search function. If the ino returned by the search()
+     // By calling the search function. If the ino returned by the search() 
      // then the directory exists
-    ino = search(pdev, child, pip);
+     ino = search(pdev, child, &mip->INODE);
     if(ino > 0)
     {
         printf("ERROR: Directory with name \"%s\" already exists.\n", child);
@@ -1130,12 +1094,8 @@ int make_dir(char *path)
         return -1;
     }
 
-    getchar();
-    printf("make_dir: child = %s ino = %d\n", child, ino);
-
     // Step 7: Call my_mkdir() passing parent in_MEMORY minode of parent and the child (basename)
-    my_mkdir(mip, child); // mip is parent minode ptr
-
+    int result = my_mkdir(mip, child); // mip is parent minode ptr
 	// inc parent inodes's link count by 1
     mip->INODE.i_links_count++;
 	// touch its atime and mark it DIRTY
@@ -1143,6 +1103,7 @@ int make_dir(char *path)
 	mip->dirty = 1;
 	// put inode back into dev
     iput(pdev, mip);
+	
     return 0;
 }
 //Mo: This function is similer to mkdir except it has a few different values in its
@@ -1152,7 +1113,7 @@ int creat_file(char *path)
 	int pdev,ino, PInoNum; // Parent Inode Number
 	char *dirc, *basec, *child, *parent;
     MINODE *mip; // Parent MINODE ptr
-
+     
 
     printf("creat path = %s\n", path);
 
@@ -1168,7 +1129,7 @@ int creat_file(char *path)
 
 
     // Step 2: get the parent (dirname ) and child (basename)
-    // if directory is /a/b/c the parent = /a/b child file = c or if directory a/b/c
+    // if directory is /a/b/c the parent = /a/b child file = c or if directory a/b/c 
     // then parent is a/b and child fileis c
     // if command is creat C then parent is . and child file is C
     dirc = strdup(path);
@@ -1177,11 +1138,11 @@ int creat_file(char *path)
     child = basename(basec);
 
     printf("creat() dirname=%s, basename=%s\n", parent, child); // Test
-
+	
 	// Get the parents inode number & MINODE ptr
 	PInoNum = getino(pdev, parent);
 	mip = (MINODE *)iget(pdev, PInoNum);
-
+	
 	printf("in_MEMORY minode of parent: dev = %d\n", mip->dev);
 
     //  Verify parent INODE is a DIR (HOW?)
@@ -1192,7 +1153,7 @@ int creat_file(char *path)
         iput(pdev, mip);
         return -1;
     }
-
+    
     // Verify  child does NOT exists in the parent directory (HOW?);
     // By calling the search function. If the ino returned by the search() != 0
     // then the file exists
@@ -1204,123 +1165,235 @@ int creat_file(char *path)
         iput(pdev, mip);
         return -1;
     }
-
-    my_creat(mip, child);
-
+    
+    my_creat(mip, child); 
+    
     // Set inode time & PMIno dirty to 1
     mip->INODE.i_atime = time(0L);
     mip->dirty = 1;
-
+	 
 	// Finally write minode to disk
 	iput(pdev, mip);
-
+	
 	return 0;
 }
 
+/*Example: link     /a/b/c                      /x/y/z ==>
+                     /a/b/   datablock           /x/y    data block
+                 ------------------------        -------------------------
+                .. .|ino rlen nlen c|...        ....|ino rlen nlen z| ....
+                ------|-----------------        ------|------------------
+                      |                               |
+                    INODE <----------------------------
+
+                i_links_count = 1  <== INCrement i_links_count to 2 */
+// This function creates a file newFileName which has the SAME inode (number) as that of
+// oldFileName. Also newFileName link path is saved as global variable called params[64]
+int Link(char *oPath)
+{
+	// o is for the old file, n is for new link file
+	int oPathInoN, ParentInoN;
+	char nPathCpy[128]; // copy  of linked path
+	char oPathCpy[128]; // copy of old file path
+	char NFName[128]; // basename of new file path
+	char OFname[128];
+	char NFParentPathCpy[128];
+	INODE *OInode, *LinkPInode;
+	MINODE *OMinode, *LinkPMinode;
+	
+	strcpy(nPathCpy, params);
+    strcpy(oPathCpy, oPath);
+    strcpy(OFname, basename(oPath));
+    strcpy(NFParentPathCpy, dirname(nPathCpy));
+    strcpy(NFName, basename(params));
+	
+	// (1). get the INODE of /a/b/c into memory: mip->minode[ ]INODE of /a/b/c
+    // dev,ino .......
+    printf("Original path: %s \n", oPathCpy);
+	oPathInoN = getino(dev, oPathCpy);
+	OMinode = (MINODE *)iget(dev, oPathInoN);
+	OInode = &(OMinode->INODE);
+	
+	//(2). check /a/b/c is a REG or LNK file (link to DIR is NOT allowed).
+	if(!S_ISREG(OInode->i_mode) && !S_ISLNK(OInode->i_mode))
+    {
+        printf("Error: This is a dir file not allowed: %s,i_mode %d .\n", oPathCpy, OInode->i_mode );
+        return -1;
+    }
+
+	//(3). check /x/y  exists and is a DIR but 'z' does not yet exist in /x/y/
+	ParentInoN = getino(dev, NFParentPathCpy);
+	if(ParentInoN == 0)
+    {
+        printf("Error the link directory path doesn't exist.\n");
+        return -1;
+    }
+	LinkPMinode = (MINODE *)iget(dev, ParentInoN);
+	LinkPInode = &(LinkPMinode->INODE);
+	// See if link file already exists.
+	if(search(dev,NFName, LinkPInode) != 0)
+	{
+		printf("Error link file already exists.\n");
+        return -1;
+		
+	}
+	//(4). Add an entry [ino rec_len name_len z] to the data block of /x/y/
+    //This creates /x/y/z, which has the SAME ino as that of /a/b/c
+	PutNamePDir(LinkPMinode,oPathInoN, NFName);
+	
+	// (5). increment the i_links_count of INODE & links parent ino by 1
+	OInode->i_links_count++;
+	LinkPInode->i_links_count++;
+	
+	// (6). write INODEs back to disk
+	iput(dev, OMinode);
+	iput(dev, LinkPMinode);
+	printf("Succesfully linked files %s to %s \n",OFname, NFName);
+	return 0;
+}
+// This function is similer to link but instead creats a soft link between files 
+// symlink oldNAME  newNAME    e.g. symlink /a/b/c /x/y/z
+// ASSUME: oldNAME has <= 60 chars, inlcuding the ending NULL byte.
+int SymLink(char *oPath)
+{
+	// o is for the old file, n is for new link file
+	int oPathInoN, linkInoN;
+	char nPathCpy[128]; // copy  of linked path
+	char oPathCpy[128]; // copy of old file path
+	char NFName[128]; // basename of new file path
+	char OFname[128];
+	char NFParentPathCpy[128];
+	char tSymlink[128];
+	INODE *OInode, *LinkInode;
+	MINODE *OMinode, *LinkMinode;
+	
+	strcpy(tSymlink, params);
+	strcpy(nPathCpy, params);
+    strcpy(oPathCpy, oPath);
+    strcpy(OFname, basename(oPath));
+    strcpy(NFParentPathCpy, dirname(params));
+    strcpy(NFName, basename(params));
+	
+	// (1). verify oldNAME exists (either a DIR or a REG file)
+	oPathInoN = getino(dev, oPathCpy);
+	if(oPathInoN == 0)
+    {
+        printf("Can't link oldfile since it doesn't exist.\n");
+        return -1;
+    }
+	OMinode = (MINODE *)iget(dev, oPathInoN);
+	OInode = &(OMinode->INODE);
+	if(!S_ISDIR(OInode->i_mode) && !S_ISREG(OInode->i_mode))
+    {
+        printf("Cant link since it isnt dir or file.\n");
+        return -1;
+    }
+    
+	// (2). creat a FILE /x/y/z
+	creat_file(tSymlink);
+	
+	// (3). change /x/y/z's type to LNK (0120000)=(1010.....)=0xA...
+	linkInoN = getino(dev, tSymlink);
+	LinkMinode = (MINODE *)iget(dev, linkInoN);
+	LinkInode = &(LinkMinode->INODE);
+	LinkInode->i_mode |= 0120000;
+	LinkInode->i_size = strlen(tSymlink);
+	
+	// (4). write the string oldNAME into the i_block[ ], which has room for 60 chars.
+	// (INODE has 24 unused bytes after i_block[]. So, up to 84 bytes for oldNAME)
+	// ie add an entry [ino rec_len name_len z] to the data block of /x/y/
+    // This creates /x/y/z, which has the SAME ino as that of /a/b/c
+	memcpy(LinkInode->i_block, oPath, strlen(oPath));
+	
+	// (5). write the INODE of /x/y/z back to disk.
+	iput(dev, LinkMinode);
+	
+	return 0;
+}
 
 // This function handles the dir entry into the MINODE, INODE, DIR fs structures.
 // pip points at the parent minode[] of "/a/b", name is a string "c")
-int my_mkdir(MINODE *pip, char *name)
+int my_mkdir(MINODE *pip, char *bname)
 {
-    int i, RemainingSpace, InodeNum, BlockNum;
-    MINODE *mip;
-    INODE *ip;
-    DIR *dp;
+    int i = 1, ParentIno, ParentParentIno, RemainingSpace, InodeNum, BlockNum;
+    MINODE *LocalMinodePtr;
+    INODE *LocalInodePtr;
+    DIR *TempDirPtr;
 	char *cp;
     char buf[BLKSIZE];
-
-
+    
+    
     InodeNum = ialloc(dev);
     BlockNum = balloc(dev);
 
-    printf("my_makedir: get In_MEMORY minode\n");
-    // to load the inode into a minode[] (in order to
+	// to load the inode into a minode[] (in order to
     // wirte contents to the INODE in memory).
-    mip = iget(pip->dev, InodeNum);
-    ip = &(mip->INODE);                     // Save on typing effors
+    LocalMinodePtr = (MINODE *)iget(dev, InodeNum);
 
-    printf("my_makedir: set: mode, uid, gid, size, link_counts\n");
+    // Read contents from mip->INODE to make it as a DIR.
+    LocalInodePtr = &LocalMinodePtr->INODE;
     //  Use ip-> to acess the INODE fields:
-    ip->i_mode = 0040775;         // OR 040755: DIR type and permissions DIR_MODE 0040775
-    ip->i_uid  = running->uid;   // Owner uid
-    ip->i_gid  = running->gid;   // Group Id
-    ip->i_size = BLKSIZE;        // Size in bytes
-    ip->i_links_count = 2;       // Links count=2 because of . and ..
-
-    printf("my_makedir: set: access time, creation time, mount time\n");
-     // set to current time
-    ip->i_atime = time(0L);
-    ip->i_ctime = time(0L);
-    ip->i_mtime = time(0L);
-
-    printf("my_makedir: set reserved blocks for ip->i_blocks, i_block[0] = BlockNum\n");
-    ip->i_blocks = BLKSIZE / 512;               // LINUX: Blocks count in 512-byte chunks  reserve this many blocks for inode
-    ip->i_block[0] = BlockNum;                  // new DIR has one data block
-
-    // Clear the Data blocks: i_blocks 1-14
-    i = 1;
+    LocalInodePtr->i_mode = 0x41ED;     // OR 040755: DIR type and permissions
+    LocalInodePtr->i_uid  = running->uid;   // Owner uid
+    LocalInodePtr->i_gid  = running->gid;   // Group Id
+    LocalInodePtr->i_size = BLKSIZE;        // Size in bytes
+    LocalInodePtr->i_links_count = 2;       // Links count=2 because of . and ..
+    // set to current time
+    LocalInodePtr->i_atime = LocalInodePtr->i_ctime = LocalInodePtr->i_mtime = time(0L);  
+    LocalInodePtr->i_blocks = 2;            // LINUX: Blocks count in 512-byte chunks
+    LocalInodePtr->i_block[0] = BlockNum;   // new DIR has one data block
+    
+    // Clear the iblocks
     while(i < 15)
     {
-        ip->i_block[i] = 0;
+        LocalInodePtr->i_block[i] = 0;
         i++;
     }
-
-    // mark minode dirty
-    mip->dirty = 1;
-    printf("my_makedir: write changes to disk\n");
-    // write the new INODE to disk.
-    iput(dev, mip);
+	// mark minode dirty
+    LocalMinodePtr->dirty = 1;               
+    // write the new INODE out to disk.
+    iput(dev, LocalMinodePtr);
 
     // Write . and .. entries into a buf[ ] of BLKSIZE
     get_block(dev, BlockNum, buf);
-    cp = buf;
-    dp = (DIR *)buf;
-
-    printf("my_makedir: write \".\" entry to disk\n");
+    cp = (char *)buf;
+    TempDirPtr = (DIR *)buf;
+    
+    
+    // Because we haven't made the new directory . and .. at this point yet, we
+    // use findino() with the parentMinodePtr, instead of LocalMinodePtr.
+    // We then just set the . entry's minode to the InodeNum generated by ialloc(),
+    // and we set the .. inode to ParentIno.
+    findinode(pip, &ParentIno, &ParentParentIno);
+    
     // For . entry
-    dp->inode = InodeNum;
-    dp->rec_len = ideal_record_length(strlen("."));
-    dp->name_len = strlen(".");
-    dp->file_type = EXT2_FT_DIR;            // EXT2_FT_DIR = 2 declared in ext2_fs.h
+    TempDirPtr->inode = InodeNum;
+    TempDirPtr->rec_len = 4 * ((8 + strlen(".") + 3) / 4);
+    TempDirPtr->name_len = strlen(".");
+    strcpy(TempDirPtr->name, ".");
 
-    // Finally Write the directory entry name for .
-    strcpy(dp->name, ".");
-
-    printf("my_makedir: write '..' entry to disk\n");
     // For .. entry
-    cp += dp->rec_len;
-    dp = (DIR *)cp;
-    dp->inode = InodeNum;
-    dp->rec_len = ideal_record_length(strlen(".."));
-    dp->name_len = strlen("..");
-    dp->file_type = EXT2_FT_DIR;            // EXT2_FT_DIR = 2 declared in ext2_fs.h
+    cp += TempDirPtr->rec_len;
+    TempDirPtr = (DIR *)cp;
+    TempDirPtr->inode = ParentIno;
+    
+//FIX RS? Have to account for the extra space.
+    RemainingSpace = BLKSIZE - ( 4 * ((8 + TempDirPtr->name_len + 3) / 4) );
+    TempDirPtr->rec_len = RemainingSpace;
+    TempDirPtr->name_len = strlen("..");
+    strcpy(TempDirPtr->name, "..");
 
-    // Finally Write the directory entry name for .. entry
-    strcpy(dp->name, "..");
 
-    printf("my_makedir: put_block into the disk\n");
     // Then, write buf[ ] to the disk block BlockNum
     put_block(dev, BlockNum, buf);
 
-
-    printf("my_makedir: put name into disk\n");
     // Finally, enter name ENTRY into parent's directory
     // What we did before was for the default . and .. entries WITHIN the newly created
     // directory. Now, we are adding in the new entry itself into the PARENT's i_block[] array
-    enter_name(pip, InodeNum, name);
+    PutNamePDir(pip, InodeNum, bname);
 
-    return 1;
-}
 
-int ideal_record_length(const int name_len)
-{
-    return (4 * ((8 + name_len + 3) / 4));
-}
-
-int needed_length(const int name_len)
-{
-    // the needed length is
-   return (4 * ((8 + name_len + 3) / 4));
+    return 0;
 }
 // This subsidary function creates a file by adjusting the
 // LocalMinodePtr->INODE and MINODE fields then writing the edited minode
@@ -1330,7 +1403,7 @@ int my_creat(MINODE *pip, char *name)
 	int i = 1, InodeNum;
     INODE *LocalInodePtr;
     MINODE *LocalMinodePtr;
-
+    
     InodeNum = ialloc(dev);
 
 	// to load the inode into a minode[] (in order to
@@ -1339,18 +1412,24 @@ int my_creat(MINODE *pip, char *name)
 
     // Read mip-INODE to access/modify it fields
     LocalInodePtr = &LocalMinodePtr->INODE;
-
+    
     //  Use ip-> to acess the INODE fields:
-    LocalInodePtr->i_mode = 0100644;         // OR 0100644: REG type and permissions
+    LocalInodePtr->i_mode = 0x8000;         // OR 0100644: REG type and permissions
+    if(S_ISREG(LocalInodePtr->i_mode))
+    {
+		printf("############ Created reg file\n");
+	}
+    
+    
     LocalInodePtr->i_uid  = running->uid;   // Owner uid
     LocalInodePtr->i_gid  = running->gid;   // Group Id
     LocalInodePtr->i_size = 0;        		// Size in bytes, NO data blocks so size = 0
     LocalInodePtr->i_links_count = 1;       // Links count=1 because it's a file
     // set to current time
-    LocalInodePtr->i_atime = LocalInodePtr->i_ctime = LocalInodePtr->i_mtime = time(0L);
+    LocalInodePtr->i_atime = LocalInodePtr->i_ctime = LocalInodePtr->i_mtime = time(0L);  
     LocalInodePtr->i_blocks = 2;            // LINUX: Blocks count in 512-byte chunks
 	LocalInodePtr->i_block[0] = 0;          // new file doesn't have any data blocks
-
+    
     // Clear the iblocks
     while(i < 15)
     {
@@ -1358,34 +1437,56 @@ int my_creat(MINODE *pip, char *name)
         i++;
     }
 	// mark minode dirty
-    LocalMinodePtr->dirty = 1;
+    LocalMinodePtr->dirty = 1;               
     // write the new INODE out to disk.
     iput(dev, LocalMinodePtr);
+	
+	// Last put file name entry into the parent(pip) minode -> inode's i_blocks[] 
+	PutNamePDir(pip, InodeNum, name);
+	return 0; 
+}
 
-	// Last put file name entry into the parent(pip) minode -> inode's i_blocks[]
-	enter_name(pip, InodeNum, name);
-	return 0;
+// This is a helper function to symlink that returns the contents of a symLink file
+// by using the string contents in INODE.i_block[ ].
+char *read_link(char *path)
+{
+	int linkInoNum;
+	INODE *tempInoPtr;
+	MINODE *tempMinoPtr;
+	
+	//(1). get INODE of pathname into a minode[ ]
+	linkInoNum = getino(dev, path);
+	tempMinoPtr = (MINODE *)iget(dev, linkInoNum);
+	tempInoPtr = &(tempMinoPtr->INODE);
+	
+	// (2). check INODE is a symbolic Link file.
+	if(!S_ISLNK(tempInoPtr->i_mode))
+    {
+        printf("Error: Not a symbolic link file.\n");
+        return NULL;
+    }
+    // (3). return its string contents in INODE.i_block[ ].
+    return (char *)tempInoPtr->i_block;
+    
 }
 
 
-/*Mo: This function adds a name (folder name..) entry to the parent
- * minode pointer's next availible data block. If the current data block
- * with the given name is full then we create a disk block at the next
+/*Mo: This function adds a name (folder name..) entry to the parent 
+ * minode pointer's next availible data block. If the current data block 
+ * with the given name is full then we create a disk block at the next 
  * index of i_block.
  * Note: does only direct blocks
- p_mip = parents memory inode pointer
-
  */
-int enter_name(MINODE *parentMinoPtr, int ino, char *name)
+void PutNamePDir(MINODE *parentMinoPtr, int ino, char *name)
 {
-    int i = 0, freeSpace, tempBlockNum, reqLen, idx;
+	int i = 0, freeSpace, tempBlockNum, reqLen, idx;  
 	char *prev_cp, *cp;
 	char buf[BLOCK_SIZE];
 	DIR *newDirPtr, *locDirPtr;
 	INODE *locInoPtr;
-
+	
 	locInoPtr = &parentMinoPtr->INODE;
-
+	
 	while(i < 12 && locInoPtr->i_block[i] != 0)
 	{
 		// For the ideal length
@@ -1393,41 +1494,39 @@ int enter_name(MINODE *parentMinoPtr, int ino, char *name)
 		// get the data blocks of the parent
 		get_block(dev, locInoPtr->i_block[i], buf);
 		cp = (char *)buf;
-
+		
 		// remaining is the last entrys rec_len minus its ideal len
 		while(cp < (buf + BLOCK_SIZE))
 		{
 			// we keep going until we have the last entry with the required len
 			locDirPtr = (DIR *)cp;
 			prev_cp = cp;
-			cp += locDirPtr->rec_len;
+			cp += locDirPtr->rec_len; 
 		}
-
+		
 		// We calc the remaining free space needed
 		freeSpace = locDirPtr->rec_len - (4 * ((8 + locDirPtr->name_len + 3) / 4));
-
+		
 		// avalible data block has enough free space
 		if(reqLen <= freeSpace)
 		{
 			// The new entry is entered as the last entry.
-
+			
 			// rec_len is set to the ideal length
 			locDirPtr->rec_len = (4 * ((8 + locDirPtr->name_len + 3) / 4));
 			// Set prev cp pointer to the new entry
 			prev_cp += locDirPtr->rec_len;
-
+			
 			// The last entry of the datablock is modified
 			locDirPtr = (DIR *)prev_cp;
-			locDirPtr->inode = parentMinoPtr->ino;
+			locDirPtr->inode = ino;
 			locDirPtr->rec_len = freeSpace;
 			locDirPtr->name_len = strlen(name);
-            locDirPtr->file_type = EXT2_FT_DIR;            // EXT2_FT_DIR = 2 declared in ext2_fs.h
-
 			strcpy(locDirPtr->name, name);
-
+			
 			// Write the data block to disk
 			put_block(dev, locInoPtr->i_block[i], buf);
-
+			
 		}
 		// Need to create a new data block
 		else
@@ -1435,8 +1534,10 @@ int enter_name(MINODE *parentMinoPtr, int ino, char *name)
 			idx = GetNotFullIblockIndex(parentMinoPtr, name);
 			// Allocate a new data block
             tempBlockNum = balloc(dev);
+            
+            
 			parentMinoPtr->INODE.i_block[idx] = tempBlockNum;
-
+            
             // INC parent's size by 1024;
             parentMinoPtr->INODE.i_size += BLKSIZE;
 
@@ -1444,49 +1545,21 @@ int enter_name(MINODE *parentMinoPtr, int ino, char *name)
             //    with rec_len=BLKSIZE.
             get_block(dev, tempBlockNum, buf);
             newDirPtr = (DIR *)buf;
-            newDirPtr->inode = parentMinoPtr->ino;
+            newDirPtr->inode = ino;
             newDirPtr->rec_len = BLKSIZE;
             newDirPtr->name_len = strlen(name);
-            locDirPtr->file_type = EXT2_FT_DIR;            // EXT2_FT_DIR = 2 declared in ext2_fs.h
             strcpy(newDirPtr->name, name);
 
             // Write data block to disk
             put_block(dev, tempBlockNum, buf);
-            break;
+
+            break;		
 		}
-
-
+		
+		
 		i++;
 	}
-
-}
-
-DIR *find_last_entry(char *buf)
-{
-    DIR *dp = (DIR *)buf;
-    char *cp = buf;
-
-    printf("Step to last entry\n");
-    int i = 0;
-    char *temp;
-    while(cp + dp->rec_len < buf + BLKSIZE)
-    {
-        if(dp->rec_len <= 0)
-        {
-            printf("Error: last entry invalid record length\n");
-            return 0;
-        }
-
-        temp = strdup(dp->name);
-        temp[dp->name_len] = 0;
-        // print DIR entries to see what they are
-        printf("%d. %s\n", i++, temp);
-
-        cp += dp->rec_len;
-        dp = (DIR *)cp;
-    }
-
-    return dp;
+		
 }
 
 // Returns the index of a useable (has enough space for dir entry) i block.
@@ -1723,7 +1796,6 @@ int touch_update(char *path)
 
     return 0;
 }
-
 int rm_child(MINODE *pip, char *child)
 {
     printf("rm_child() directory: %s\n", child);
@@ -1731,7 +1803,6 @@ int rm_child(MINODE *pip, char *child)
     DIR *dp, *dp2, *prevdp;          // pdp: previous dir entry *, cdp: current dir entry*
 
     char buf[BLOCK_SIZE], buf2[BLOCK_SIZE];  // current buffer
-    char dirnametmp[256];
     bzero(buf2, BLOCK_SIZE);
 
     INODE *tmpIp = &pip->INODE;
@@ -1761,12 +1832,10 @@ int rm_child(MINODE *pip, char *child)
         while(cp < (buf + BLOCK_SIZE) && (found_child < 0))
         {
 
-            char *temp = malloc(sizeof(char *) * dp->name_len + 1);
-            strncpy(temp, dp->name, dp->name_len );
-            temp[dp->name_len + 1] = 0;
+            char *temp = strdup(dp->name);
+            temp[dp->name_len] = 0;
 
             printf("%s\n", temp);
-            printf("********************\n");
             if(strcmp(child, temp) == 0)
             {
                 printf("found child in i_block[%d]\n", i);
@@ -1781,13 +1850,7 @@ int rm_child(MINODE *pip, char *child)
                     tmpIp->i_block[i] = 0;
                     tmpIp->i_blocks--;
                     found_child = i;
-
-                    printf("found child in i_block #%d\n", found_child);
-                    put_block(pip->dev, pip->INODE.i_block[found_child], buf);
                     getchar();
-
-                    free(temp);
-                    return 0;
                 }
                 else
                 {
@@ -1797,35 +1860,23 @@ int rm_child(MINODE *pip, char *child)
                     printf("finding last entry");
                     while((dp2->rec_len + cp2) < buf + BLOCK_SIZE)
                     {
-
-
                         prevdp = dp2;
-                        strncpy(dirnametmp, prevdp->name, dp->name_len );
-                        dirnametmp[dp->name_len + 1] = 0;
-                        printf("%s\n", dirnametmp);
-
+                        printf("%s\n", prevdp->name);
                         cp2 += dp2->rec_len;
                         dp2 = (DIR *)cp2;
                         getchar();
                     }
 
+                    printf("prevdp->name = %s\n", prevdp->name);
                     if(dp == dp2)
                     {
                         printf("%s is last entry in block\n", child);
                         prevdp->rec_len += dp->rec_len;
-
                         found_child = i;
-                        printf("found child in i_block #%d\n", found_child);
-                        put_block(pip->dev, pip->INODE.i_block[found_child], buf);
                         getchar();
-
-                        return 0;
                     }
                     else
                     {
-
-                        found_child = i;
-
                         printf("%s is not the last entry in block\n\n", child);
                         int size = (buf + BLOCK_SIZE) - (cp + dp->rec_len);
                         printf("Size of previous record entry = %d\n", size);
@@ -1836,11 +1887,10 @@ int rm_child(MINODE *pip, char *child)
                         prevdp = (DIR *)cp;
                         printf("previous dir name: temp = %s\n", prevdp->name);
 
-                        printf("found child in i_block #%d\n", found_child);
-                        put_block(pip->dev, pip->INODE.i_block[found_child], buf);
-
+                        found_child = i;
                         getchar();
-                        return 0;
+
+
                     }
 
                 }
@@ -1851,6 +1901,12 @@ int rm_child(MINODE *pip, char *child)
             dp = (DIR *)cp;
         }
 
+        if(found_child >= 0)
+        {
+            printf("found child in i_block #%d\n", found_child);
+            put_block(pip->dev, pip->INODE.i_block[found_child], buf);
+            return 0;
+        }
     }
 
     return 0;
@@ -1900,186 +1956,17 @@ int dir_isempty(MINODE *mip)
 
 
 
-int rm_file(char *path)
-{
-    char *parent, *child, *dirc, *basec;
-
-    uint32_t ino;
-
-    MINODE *pip;            // parent Inode pointer
-    MINODE *mip;            // In Memory Inode pointer
-    INODE *parent_inode;
-
-     // check if path of the directory to be removed is given
-    if(path[0] == NULL)
-    {
-        perror("You must specify a pathname\n");
-        return -1;
-    }
-
-    printf("Get the ino of %s\n", path);
-    // get the inode number
-    ino = getino(dev, path);
-    printf("rm %s ino = %d\n", path, ino);
-    // check its a valid inode number
-    if(ino <= 0)
-    {
-        perror("Invalid! pathname not found\n");
-        return -1;
-    }
-
-    // get the minode (In memory inode from MINODE [] )
-    mip = iget(dev, ino);
-
-    // check the i_mode if its not a directory then error
-    if(!S_ISREG(mip->INODE.i_mode))
-    {
-        printf("Error: not a file\n");
-         // put the inode back
-        iput(mip->dev, mip);
-        return -1;
-    }
-
-    // Check the refCount of the inode to make sure directory is not in use
-    if(mip->refCount > 1)
-    {
-        perror("Error: file is in use\n");
-        return -1;
-    }
-
-    // Deallocate datablocks 0-11
-    int i = 0;
-    while(i < 12)
-    {
-        if(mip->INODE.i_block[i])
-        {
-            printf("deallocating datablock : i_block[%d]....\n", i);
-            bdealloc(mip->dev, mip->INODE.i_block[i]);
-        }
-        i++;
-    }
-
-    // Deallocate the inodes
-    idealloc(mip->dev, mip->ino);
-
-     // Get Basename and Dirname of from path
-    // if directory is /a/b/c the parent = /a/b child = c or if directory a/b/c then parent is a/b and child is c
-    // if command is mkdir C then parent is . and child is C
-    dirc = strdup(path);
-    basec = strdup(path);
-    parent = dirname(dirc);
-    child = basename(basec);
-
-    printf("dirname = %s basename = %s\n", parent, child);
-    getchar();
-
-
-    // Get ino of parent
-    ino = getino(mip->dev, parent);
-    printf("parent ino = %u\n", ino);
-
-    // get the parent inode pointer
-    pip = iget(mip->dev, ino);
-    iput(mip->dev, mip);
-
-    // Remove the child (basename): the directory to be removed
-    rm_child(pip, child);
-
-    // Decrease the parent Inode linkcount by 1
-    pip->INODE.i_links_count--;
-
-    // Update parent Inode information and set dirty =1 (modified)
-    touch_update (parent);
-    pip->dirty = 1;
-
-    // Put the parent Inode back into disk
-    iput(pip->dev, pip);
 
 
 
 
-}
-
-
-int my_chmod(char *path)
-{
-    char permMode[64], mPath[256];
-    uint32_t ino, mode;
-    MINODE *mip;
-    char *temp;
-
-    // Write 0's inside the permissions array
-    bzero(permMode, 64);
-    temp = strchr(path, " ");
-
-    // Step 1: Permissions are stored in the global variable params
-    if(params[0] == NULL)
-    {
-        printf("Usage: chmod [path] [permissions]\n");
-        return 0;
-    }
-
-    printf("Change access permissions: path = %s mode = %s \n", path, params);
-
-    // Step 2: change permissions to ulong
-    mode = strtoul(params, NULL, 8);
-    printf("mode = %u\n", mode);
-
-    // Step 3: Get ino of path
-    ino = getino(dev, path);
-    if(ino <= 0)
-    {
-        printf("Invalid path error\n");
-        return -1;
-    }
-
-    // Step 4: get the IN_Memory inode
-    mip = iget(dev, ino);
-    printf("chmod: mip->dev = %d mip->ino = %d\n", mip->dev, mip->ino);
-
-
-    int i = i = ~0x1FF;
-    printf("i = %d\n", i);
-
-    mip->INODE.i_mode &= i;
-    printf("mip->INODE.i_mode &= i: %d\n", mip->INODE.i_mode);
-
-    mip->INODE.i_mode |= mode;
-    printf("mip->INODE.i_mode |= i: %d\n", mip->INODE.i_mode);
-
-    // Step 5: Set dirty bit to 1 to indicate its been modified
-    mip->dirty = 1;
-
-    // Step 6: write changes to disk
-    iput(mip->dev, mip);
-
-    getchar();
-
-    return 1;
-}
-
-int split_path(char *original, char *path1, char *perm)
-{
-    char *token;
-
-    token = strtok(original, " ");
-    strcpy(path1, token);
-
-    // Get the permission string from path
-    token = strtok(0, " ");
-    if(token == NULL)
-    {
-        printf("Error missing permission: chmod [path] [permission]\n");
-        return -1;
-    }
-
-    strtok(perm, token);
-    return 1;
 
 
 
 
-}
+
+
+
 
 
 

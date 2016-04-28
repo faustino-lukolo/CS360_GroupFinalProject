@@ -25,24 +25,24 @@ int main(int argc, char *argv[], char *env[] ) {
         sscanf(line, "%s %s %s", cmd, pathname, params);
         printf("cmd = %s pathname = %s params = %s\n", cmd, pathname, params);
 
-
-        /*if (params[0]) {
+		/*
+        if (params[0]) {
             printf("params exists...\n");
             strcat(pathname, " ");
             strcat(pathname, params);
-        }*/
+        }
 
         if(!pathname[0])
         {
             memset(pathname, 0, 128);
             printf("Enter a valid pathname\n");
-        }
+        } */
 
         // Arguments are provided with pathname
         printf("full pathname = %s\n", pathname);
 
         int i = 0;
-        while(i < 9)
+        while(i < 8)
         {
             if(strcmp(sh_cmds[i], cmd) == 0)
             {

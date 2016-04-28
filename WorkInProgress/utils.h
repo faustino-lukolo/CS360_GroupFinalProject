@@ -56,20 +56,20 @@ int make_dir(char *path);
 int rm_dir(char *path);
 int pwd(char *pathstr);
 int creat_file(char *path);
-int rm_file(char *path);
-int my_chmod(char *path);
+int Link(char *oPath);
+int SymLink(char *oPath);
+
 
 // BLOCK Operations
 int get_super_block(int dev, char *buf);
 
 
 // Helpers
-int my_mkdir(MINODE *pip, char *name);
-int enter_name(MINODE *parentMinoPtr, int ino, char *name);
+int my_mkdir(MINODE *pip, char *bname);
+void PutNamePDir(MINODE *parentMinoPtr, int ino, char *name);
 int GetNotFullIblockIndex(MINODE *mip, char *name);
 int my_creat(MINODE *pip, char *name);
-int split_path(char *original, char *path1, char *perm);
-
+char *read_link(char *path); 
 
 // Bit functions
 int tst_bit(char *buf, int i);
@@ -83,9 +83,9 @@ int findDatablocks(INODE *ip, int pstat);
 int printDirs(int blk, int pstat);
 int printstat(DIR *dp);
 int dir_isempty(MINODE *mip);
-DIR *find_last_entry(char *buf);
+
 
 /*Function pointers for commands */
-static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file, touch_update, rm_dir, rm_file, pwd, my_chmod};
-static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "touch", "rmdir","rm" ,"pwd", "chmod"};
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, pwd, Link, SymLink};
+static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "pwd", "link", "symlink"};
 #endif

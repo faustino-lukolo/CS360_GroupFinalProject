@@ -63,6 +63,7 @@ int open_file(char *path);
 int mlseek(char *path);
 int close_file(char *path);
 int read_file(char *path);
+//int mycat(char *fname);
 
 // BLOCK Operations
 int get_super_block(int dev, char *buf);

@@ -2637,6 +2637,7 @@ int myread(int fd, char *buf, int nbytes)
 	   // Check if we cant copy any more in this itr
 	   if(avilbytes <= 0 || nbytes <= 0)
 	   {
+		   printf("%s\n", &rBuf);
 		   break;
 	   }
 	   // if one data block is not enough, loop back to OUTER while for more ...
@@ -2665,7 +2666,7 @@ int getMinBytes(int nbytes, int avilbytes, int remainbytes)
 }*/
 int read_file(char *path)
 {
-	int fd = atoi(path);
+	int fd = openfd; // from our open
 	int nbytes = atoi(params);
 	char buf[BLOCK_SIZE];
 	OFT *oftp = running->fd[fd];

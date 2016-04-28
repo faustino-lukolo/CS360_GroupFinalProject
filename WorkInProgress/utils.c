@@ -1374,6 +1374,88 @@ int Link(char *oPath)
 	printf("Succesfully linked files %s to %s \n",OFname, NFName);
 	return 0;
 }
+int my_unlink(char *path)
+{
+    printf("unlink: path = %s\n", path);
+
+    const int mdev = running->cwd->dev;
+    const int uid = running->uid;
+
+    int ino = getino(mdev, path);
+    if(ino <= 0)
+    {
+        printf("Error: Invalid path\n");
+        return -1;
+    }
+
+    MINODE *mip = iget(mdev, ino);
+    if(mip == NULL)
+    {
+        printf("Error: Invalid Minode\n");
+        iput(mdev, mip);
+        return 0;
+    }
+
+    // Verify that the user has permission to unlink the file
+    if(uid != SUPER_USER && uid != mip->INODE.i_uid)
+    {
+        printf("Error: Permissions denied\n");
+        iput(mdev, mip);
+        return -1;
+    }
+
+    // Check that it is not a directory. We can only unlink files
+    if(S_ISDIR(mip->INODE.i_mode))
+    {
+        printf("Error: path is directory. cannot unlink directories\n");
+        iput(mdev, mip);
+    }
+
+    // Check that the file is not busy. Used by other process
+    if(mip->refCount > 1)
+    {
+        printf("Error: file is busy\n");
+        iput(mdev, mip);
+    }
+
+    INODE *ip = &mip->INODE;
+    int i;
+    // Start deallocating blocks
+    for(i = 0; i < 12 && ip->i_block[i] != 0; i++)
+    {
+        bdealloc(mdev, ip->i_block[i]);
+    }
+
+    // Deallocate inodes
+    idealloc(mdev, ino);
+
+    char *parent, *child, *dirc, *basec;
+
+    // Get Basename and Dirname of from path
+    // if directory is /a/b/c the parent = /a/b child = c or if directory a/b/c then parent is a/b and child is c
+    // if command is mkdir C then parent is . and child is C
+    dirc = strdup(path);
+    basec = strdup(path);
+    parent = dirname(dirc);
+    child = basename(basec);
+
+    printf("unlink: parent = %s, child = %s\n", parent, child);
+
+    // Get the parents inumber and minode
+    int parent_ino = getino(mdev, parent);
+    MINODE *pmip = iget(mdev, parent_ino);
+    INODE *pip = &pmip;
+
+    // Remove the file entry from the parent directory
+    rm_child(pmip, child);
+
+    // Touch_update parent directory information
+    touch_update(parent);
+
+    iput(mdev, pmip);
+
+}
+
 // This function is similer to link but instead creats a soft link between files
 // symlink oldNAME  newNAME    e.g. symlink /a/b/c /x/y/z
 // ASSUME: oldNAME has <= 60 chars, inlcuding the ending NULL byte.
@@ -2408,7 +2490,25 @@ int dir_isempty(MINODE *mip)
 }
 
 
+int quit(char *path)
+{
+    int i = 0;
+    MINODE *mip;
 
+    printf("Exiting program...\n");
+    while(i < NMINODES)
+    {
+        mip = &minode[i];
+
+        if(mip->refCount > 0)
+            iput(mip->dev, mip);
+
+        i++;
+    }
+
+    exit(0);
+
+}
 
 
 

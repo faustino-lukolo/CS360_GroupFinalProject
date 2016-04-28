@@ -57,7 +57,7 @@ int rm_dir(char *path);
 int pwd(char *pathstr);
 int creat_file(char *path);
 int Link(char *oPath);
-int SymLink(char *oPath); 
+int SymLink(char *oPath);
 int open_file(char *path);
 
 // BLOCK Operations
@@ -75,8 +75,8 @@ int ls_dir(MINODE *mip);
 int ls_file(MINODE *mip, char *file);
 int rm_file(char *path);
 
-char *read_link(char *path); 
-int TruncateFileMino(MINODE *myMinoPtr); 
+char *read_link(char *path);
+int TruncateFileMino(MINODE *myMinoPtr);
 
 
 // Bit functions
@@ -94,8 +94,8 @@ int dir_isempty(MINODE *mip);
 
 
 /*Function pointers for commands */
-
-static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, pwd, Link, SymLink, open_file};
-static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "pwd", "link", "symlink", "open"};
+#define NUM_CMDS 10
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, rm_file, pwd, Link, SymLink, open_file};
+static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "rm", "pwd", "link", "symlink", "open"};
 
 #endif

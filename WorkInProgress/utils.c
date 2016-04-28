@@ -1457,25 +1457,25 @@ int SymLink(char *oPath)
   ===========        logical view of file: a sequence of bytes */
 
 
-// This function opens a file given a path name and the mode (which is params str) 
-// in the form of 0 or 1 or 2 or 3 for RD|WR|RW|APPEND to open it with. 
+// This function opens a file given a path name and the mode (which is params str)
+// in the form of 0 or 1 or 2 or 3 for RD|WR|RW|APPEND to open it with.
 int open_file(char *path)
 {
 	int i, pdev, InoNum, mode;
 	MINODE *tempMinoPtr;
 	OFT *oftp; // Open File Table pointer
-	
+
 	// set mode from string
 	mode = atoi(params);
-	
+
 	//1. ask for a pathname and mode to open: Done in main
-    // You may use mode = 0|1|2|3 for R|W|RW|APPEND. 
+    // You may use mode = 0|1|2|3 for R|W|RW|APPEND.
 	// check if the pathname is absolute or relative to current working directory
-   
+
     /*2. get pathname's inumber:
          if (pathname[0]=='/') dev = root->dev;          // root INODE's dev
-         else                  dev = running->cwd->dev;  
-         ino = getino(&dev, pathname);  // NOTE: dev may change with mounting*/ 
+         else                  dev = running->cwd->dev;
+         ino = getino(&dev, pathname);  // NOTE: dev may change with mounting*/
 	if(path[0] == '/')
     {
         pdev = root->dev;           // start from root
@@ -1491,10 +1491,10 @@ int open_file(char *path)
 		printf("Path doesnt exist: Inode Number  = 0 \n");
 		return -1;
 	}
-	
+
 	//3. get its Minode pointer
-	tempMinoPtr = (MINODE *)iget(dev, InoNum); 
-	
+	tempMinoPtr = (MINODE *)iget(dev, InoNum);
+
 	//4. check mip->INODE.i_mode to verify it's a REGULAR file and permission OK.
 	 if(!S_ISREG(tempMinoPtr->INODE.i_mode))
     {
@@ -1507,16 +1507,16 @@ int open_file(char *path)
         printf("You don't have permissions to modify this file.\n");
         return -1;
     }
-    
+
     /*Check whether the file is ALREADY opened with INCOMPATIBLE mode:
            If it's already opened for W, RW, APPEND : reject.
            (that is, only multiple R are OK) */
-    i = 0; 
+    i = 0;
     while(i < NFD)
 	{
 		OFT *tempOFT = running->fd[i];
 		// If nothing is in this open file table than skip to next iteration
-		if(tempOFT == NULL) 
+		if(tempOFT == NULL)
 		{	printf("inside i = %d < NFD tempoft = NULL \n", i); // test
 			i++;
 			continue;
@@ -1527,16 +1527,16 @@ int open_file(char *path)
             printf("File is already opened in a non-read mode.\n");
             return -1;
 		}
-		i++;	
+		i++;
 	}
-	
+
 	//5. allocate a FREE OpenFileTable (OFT) and fill in values:
 	oftp = (OFT *)malloc(sizeof(OFT));
-    oftp->mode = mode;      // mode = 0|1|2|3 for R|W|RW|APPEND 
+    oftp->mode = mode;      // mode = 0|1|2|3 for R|W|RW|APPEND
     oftp->refCount = 1;
     oftp->inodeptr = tempMinoPtr;  // point at the file's minode[]
-	
-	
+
+
     //6. Depending on the open mode 0|1|2|3, set the OFT's offset accordingly:
 	 switch(mode){
 	 case 0 : oftp->offset = 0;     // R: offset = 0
@@ -1561,11 +1561,11 @@ int open_file(char *path)
 				break;
 			}
 		}
-	
+
 	/*8. update INODE's time field
-         for R: touch atime. 
+         for R: touch atime.
          for W|RW|APPEND mode : touch atime and mtime
-      mark Minode[ ] dirty  */	
+      mark Minode[ ] dirty  */
 	if(mode == 0)
 	{
 		tempMinoPtr->INODE.i_atime = time(0L);
@@ -1576,7 +1576,7 @@ int open_file(char *path)
 		tempMinoPtr->INODE.i_mtime = time(0L);
 	}
 	tempMinoPtr->dirty = 1;
-	 
+
 	printf("Opened file: %s Mode: %d Fd: %d   \n", path, mode, i); // test
 	//9. return i as the file descriptor
 	return i;
@@ -1686,7 +1686,7 @@ int my_creat(MINODE *pip, char *name)
     LocalInodePtr = &LocalMinodePtr->INODE;
 
     //  Use ip-> to acess the INODE fields:
-    LocalInodePtr->i_mode = 0x8000;         // OR 0100644: REG type and permissions
+    LocalInodePtr->i_mode = FILE_MODE;         // OR 0100644: REG type and permissions
     if(S_ISREG(LocalInodePtr->i_mode))
     {
 		printf("############ Created reg file\n");
@@ -2123,7 +2123,7 @@ int rm_dir(char *path)
 
 int rm_file(char *path)
 {
-    char *parent, *child, *dirc, *basec;
+   char *parent, *child, *dirc, *basec;
 
     int ino;
 
@@ -2215,7 +2215,6 @@ int rm_file(char *path)
 
     // Put the parent Inode back into disk
     iput(pip->dev, pip);
-
 }
 
 

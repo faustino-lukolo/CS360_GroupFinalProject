@@ -281,13 +281,13 @@ int iput(int mdev, MINODE *mip)
     }
 
     // Step 3: Write Inode back into disk using MailMan's Algorith to find blk and offset
-    blk     = (mip->ino - 1) / InodeBeginBlock;
+    blk     = (mip->ino - 1) / 8 + InodeBeginBlock;
     offset  = (mip->ino -1) % 8;
     //printf("Preparing to write inode to disk @ blk = %d offset = %d\n", blk, offset);
 
     // Step 4: read the block into the buffer using the blk number
-    get_block(mip->dev, blk, buf);
-    ip = (INODE *)buf;
+    get_block(dev, blk, buf);
+    ip = (INODE *)buf + offset;
 
     // Step 5: Copy the In_Memory INODE struct into ip (INODE inside buffer array)
     memcpy(ip, &(mip->INODE), sizeof(INODE));

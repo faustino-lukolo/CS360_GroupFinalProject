@@ -2489,7 +2489,52 @@ int dir_isempty(MINODE *mip)
 	return 0;
 }
 
+int my_chown(char *path)
+{
 
+
+    const int mdev = running->cwd->dev;
+    if(params[0] == 0 || !params)
+    {
+        printf("Error! usage: chown [new owner] [path to file]\n");
+        return -1;
+    }
+
+    char *tempPath = strdup(params);
+    char *newOwner = strdup(path);
+
+    printf("change ownership: path = %s new_owner = %s\n", tempPath, newOwner);
+
+    if(path[0] == 0 || !path)
+    {
+        printf("Error: please enter a valid path");
+        return 0;
+    }
+
+
+
+    // Get the path ino
+    int ino = getino(mdev, tempPath);
+
+    if(ino <= 0)
+    {
+        printf("Error: Invalid path\n");
+        return 0;
+    }
+
+    // Get the Memory Inode
+    MINODE *mip = iget(mdev, ino);
+    INODE *ip = &mip->INODE;
+
+
+    u64 owner = strtol(newOwner, NULL, 10);
+    ip->i_uid = owner;
+
+    mip->dirty = 1;
+    iput(mdev, mip);
+
+    return 0;
+}
 int quit(char *path)
 {
     int i = 0;

@@ -48,6 +48,7 @@ int idealloc(int dev, int ino);
 int bdealloc(int dev, int bno);
 int rm_child(MINODE *pip, char *child);
 
+/************* LEVEL 1 ******************/
 
 /* Start of Linux Commands Functions */
 int ls(char *path);
@@ -60,6 +61,7 @@ int Link(char *oPath);
 int SymLink(char *oPath);
 int my_unlink(char *path);
 int open_file(char *path);
+int my_chown(char *path);
 int quit(char *path);
 // BLOCK Operations
 int get_super_block(int dev, char *buf);
@@ -96,8 +98,8 @@ int dir_isempty(MINODE *mip);
 
 
 /*Function pointers for commands */
-#define NUM_CMDS 12
-static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, rm_file, pwd, Link, SymLink, my_unlink, open_file, quit};
-static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "rm", "pwd", "link", "symlink", "ul", "open", "quit"};
+#define NUM_CMDS 13
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, rm_file, pwd, Link, SymLink, my_unlink, open_file, my_chown, quit};
+static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "rm", "pwd", "link", "symlink", "ul", "open", "chown", "quit"};
 
 #endif

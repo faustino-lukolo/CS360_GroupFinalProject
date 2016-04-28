@@ -42,7 +42,7 @@ int main(int argc, char *argv[], char *env[] ) {
         printf("full pathname = %s\n", pathname);
 
         int i = 0;
-        while(i < 8)
+        while(i < 9)
         {
             if(strcmp(sh_cmds[i], cmd) == 0)
             {

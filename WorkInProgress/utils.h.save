@@ -73,7 +73,6 @@ char *read_link(char *path);
 int TruncateFileMino(MINODE *myMinoPtr);
 int ls_dir(MINODE *mip);
 int ls_file(MINODE *mip, char *file);
-int rm_file(char *path);
 
 // Bit functions
 int tst_bit(char *buf, int i);
@@ -90,6 +89,6 @@ int dir_isempty(MINODE *mip);
 
 
 /*Function pointers for commands */
-static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file, rm_dir, rm_file, pwd, Link, SymLink};
+static int (*fptr[])(char*) = {(int (*)())ls, cd, make_dir, creat_file,rm_dir, rm_file(, pwd, Link, SymLink};
 static char *sh_cmds[] = {"ls", "cd", "mkdir", "creat", "rmdir", "rm", "pwd", "link", "symlink"};
 #endif

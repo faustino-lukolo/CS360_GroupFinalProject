@@ -54,6 +54,14 @@ SUPER *sp;
 INODE *ip;
 DIR   *dp;
 
+/* Define Shorter type */
+
+typedef unsigned char  u8;
+typedef unsigned short u16;
+typedef unsigned int   u32;
+typedef unsigned long  u64;
+
+
 #define bzero(b,len) (memset((b), '\0', (len)), (void) 0)
 #define BLOCK_SIZE        1024
 #define BLKSIZE           1024

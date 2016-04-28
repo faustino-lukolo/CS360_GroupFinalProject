@@ -262,34 +262,32 @@ int iput(int mdev, MINODE *mip)
     int blk, offset;
     INODE *ip;
 
-    printf("iput(): dev = %d\n", mdev);
-
-
-    printf("iput() decrementing inode refCount = %d\n", mip->refCount);
+   // printf("iput(): dev = %d\n", mdev);
+    //printf("iput() decrementing inode refCount = %d\n", mip->refCount);
 
     // Step 1: decrease the inode refCount by 1
     mip->refCount--;
     if(mip->refCount > 0)
     {
-        printf("iput() refCount = %d\n", mip->refCount);
+        //printf("iput() refCount = %d\n", mip->refCount);
         return 0;
     }
 
     // Step 2: check if the Inode has not been modified
     if(mip->dirty == 0)
     {
-        printf("iput() inode has not been modified : dirty = %d\n", mip->dirty);
+        //printf("iput() inode has not been modified : dirty = %d\n", mip->dirty);
         return 0;           // No need to put Inode back into device since it has not been modified
     }
 
     // Step 3: Write Inode back into disk using MailMan's Algorith to find blk and offset
-    blk     = (mip->ino - 1) / InodeBeginBlock;
+    blk     = (mip->ino - 1) / 8 + InodeBeginBlock;
     offset  = (mip->ino -1) % 8;
-    printf("Preparing to write inode to disk @ blk = %d offset = %d\n", blk, offset);
+    //printf("Preparing to write inode to disk @ blk = %d offset = %d\n", blk, offset);
 
     // Step 4: read the block into the buffer using the blk number
-    get_block(mip->dev, blk, buf);
-    ip = (INODE *)buf;
+    get_block(dev, blk, buf);
+    ip = (INODE *)buf + offset;
 
     // Step 5: Copy the In_Memory INODE struct into ip (INODE inside buffer array)
     memcpy(ip, &(mip->INODE), sizeof(INODE));
